@@ -289,7 +289,7 @@ function escapeHtml(unsafe) {
 function initAddSiteFeature() {
     const btnAddSite = document.getElementById('btn-add-site');
     const btnClosePanel = document.getElementById('btn-close-panel');
-    const addSitePanel = document.getElementById('add-site-panel');
+    const addSiteModal = document.getElementById('add-site-modal');
     const addSiteForm = document.getElementById('add-site-form');
     const requestedSitesList = document.getElementById('requested-sites-list');
     const requestedSitesCount = document.getElementById('requested-sites-count');
@@ -299,20 +299,27 @@ function initAddSiteFeature() {
     
     let requestedSites = JSON.parse(localStorage.getItem('monitor_requested_sites') || '[]');
     
-    // Toggle Panel
-    if (btnAddSite && addSitePanel) {
+    // Open Modal
+    if (btnAddSite && addSiteModal) {
         btnAddSite.addEventListener('click', () => {
-            const isHidden = addSitePanel.style.display === 'none';
-            addSitePanel.style.display = isHidden ? 'flex' : 'none';
-            if (isHidden) {
-                renderRequestedSites();
-            }
+            addSiteModal.style.display = 'flex';
+            renderRequestedSites();
         });
     }
     
-    if (btnClosePanel && addSitePanel) {
+    // Close Modal via Button
+    if (btnClosePanel && addSiteModal) {
         btnClosePanel.addEventListener('click', () => {
-            addSitePanel.style.display = 'none';
+            addSiteModal.style.display = 'none';
+        });
+    }
+    
+    // Close Modal via Backdrop Click
+    if (addSiteModal) {
+        addSiteModal.addEventListener('click', (e) => {
+            if (e.target === addSiteModal) {
+                addSiteModal.style.display = 'none';
+            }
         });
     }
     
@@ -340,6 +347,11 @@ function initAddSiteFeature() {
                 urlInput.value = '';
                 
                 renderRequestedSites();
+                
+                // Close modal after successful registration
+                setTimeout(() => {
+                    addSiteModal.style.display = 'none';
+                }, 300);
             }
         });
     }

@@ -710,28 +710,53 @@ body {
 }
 
 /* =============================================================================
-   Add Site Panel Styling
+   Add Site Modal Overlay Styling
    ============================================================================= */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 .add-site-panel {
     background: var(--bg-surface);
     border: 1px solid var(--border-color);
-    border-radius: 20px;
-    padding: 24px;
+    border-radius: 24px;
+    padding: 28px;
     display: flex;
     flex-direction: column;
     gap: 20px;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
-    animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 95%;
+    max-width: 580px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+    animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes slideDown {
+@keyframes scaleUp {
     from {
         opacity: 0;
-        transform: translateY(-10px);
+        transform: scale(0.95) translateY(15px);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: scale(1) translateY(0);
     }
 }
 
@@ -791,12 +816,12 @@ body {
 
 .add-site-form {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: 15px;
-    align-items: flex-end;
+    align-items: stretch;
     background-color: var(--bg-main);
-    padding: 16px;
-    border-radius: 12px;
+    padding: 20px;
+    border-radius: 16px;
     border: 1px solid var(--border-color);
 }
 
@@ -831,9 +856,12 @@ body {
 }
 
 .form-submit-btn {
-    height: 42px;
+    height: 44px;
     padding: 0 20px;
-    border-radius: 8px;
+    border-radius: 10px;
+    width: 100%;
+    justify-content: center;
+    margin-top: 5px;
 }
 
 .requested-sites-list-container {
