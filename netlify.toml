@@ -1,0 +1,9 @@
+[build]
+  publish = "."
+  # No build command needed for static site
+
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=300"

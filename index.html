@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>지원사업 모니터링 시스템</title>
+    
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- PapaParse for robust CSV Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glow-bg glow-1"></div>
+    <div class="glow-bg glow-2"></div>
+    
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-logo">
+                <i data-lucide="radar" class="logo-icon animate-pulse"></i>
+                <div class="logo-text">
+                    <h1>Project Monitor</h1>
+                    <p>지원사업 모니터링 시스템</p>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <div class="status-badge">
+                    <span class="status-indicator"></span>
+                    <span id="total-count-badge">수집 정보: 0건</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Search & Filter Controls -->
+        <section class="controls-card">
+            <div class="search-box">
+                <i data-lucide="search" class="search-icon"></i>
+                <input type="text" id="search-input" placeholder="지원사업 제목, 키워드를 입력해 주세요...">
+                <button id="btn-clear-search" class="btn-clear" style="display: none;">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            
+            <div class="filter-box">
+                <span class="filter-label"><i data-lucide="sliders-horizontal" class="filter-label-icon"></i>출처 필터</span>
+                <div class="filter-chips-container" id="source-filters">
+                    <button class="chip active" data-source="ALL">전체보기</button>
+                    <!-- Badges will be generated here by app.js -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Display Content -->
+        <main class="content-section">
+            <div class="section-header-row">
+                <div class="section-title">
+                    <h2>지원사업 모집 공고 목록</h2>
+                    <p id="showing-count">전체 0건 중 0건 표시 중</p>
+                </div>
+                
+                <div class="sort-selector-container">
+                    <label for="sort-select"><i data-lucide="arrow-up-down" class="sort-label-icon"></i>정렬 기준</label>
+                    <select id="sort-select" class="sort-select">
+                        <option value="id-desc">최신 수집순</option>
+                        <option value="id-asc">과거 수집순</option>
+                        <option value="date-desc">최신 등록순</option>
+                        <option value="date-asc">과거 등록순</option>
+                        <option value="source-asc">출처 가나다순</option>
+                        <option value="title-asc">사업명 가나다순</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Bulletin Board List Table -->
+            <div class="table-container">
+                <table class="project-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">번호</th>
+                            <th style="width: 180px;">출처</th>
+                            <th>지원사업명</th>
+                            <th style="width: 120px;">등록일</th>
+                            <th style="width: 120px;">수집일</th>
+                        </tr>
+                    </thead>
+                    <tbody id="projects-list-body">
+                        <!-- Loader (will be replaced by rows in app.js) -->
+                        <tr id="grid-loader">
+                            <td colspan="5" class="table-loader-cell">
+                                <div class="spinner"></div>
+                                <p>데이터 로딩 중...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Empty State -->
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <i data-lucide="folder-open" class="empty-icon"></i>
+                <h3>검색 조건에 맞는 지원사업이 없습니다.</h3>
+                <p>다른 검색어 또는 필터를 선택해 주세요.</p>
+            </div>
+            
+            <!-- Load More Pagination -->
+            <div class="pagination-container" id="pagination-container" style="display: none;">
+                <button id="btn-load-more" class="btn-secondary">
+                    <span>더 보기</span>
+                    <i data-lucide="chevron-down" class="btn-icon-right"></i>
+                </button>
+            </div>
+        </main>
+        
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>© 2026 지원사업 모니터링 시스템. Powered by GitHub Actions.</p>
+        </footer>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>
