@@ -708,3 +708,254 @@ body {
         content: ' 바로가기';
     }
 }
+
+/* =============================================================================
+   Add Site Panel Styling
+   ============================================================================= */
+.add-site-panel {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+    animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 12px;
+}
+
+.panel-header h3 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.panel-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--primary-color);
+}
+
+.btn-icon-only {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-smooth);
+}
+
+.btn-icon-only:hover {
+    background-color: var(--bg-surface-hover);
+    color: var(--text-primary);
+}
+
+.panel-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.panel-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.add-site-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: flex-end;
+    background-color: var(--bg-main);
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.form-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.form-group input {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    color: var(--text-primary);
+    outline: none;
+    transition: var(--transition-smooth);
+}
+
+.form-group input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.1);
+}
+
+.form-submit-btn {
+    height: 42px;
+    padding: 0 20px;
+    border-radius: 8px;
+}
+
+.requested-sites-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.requested-sites-list-container h4 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.requested-sites-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+/* Custom scrollbar for list */
+.requested-sites-list::-webkit-scrollbar {
+    width: 6px;
+}
+.requested-sites-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+.requested-sites-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+.requested-sites-list::-webkit-scrollbar-thumb:hover {
+    background: var(--border-color-active);
+}
+
+.requested-site-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--bg-main);
+    border: 1px solid var(--border-color);
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    transition: var(--transition-smooth);
+}
+
+.requested-site-item:hover {
+    border-color: var(--border-color-active);
+}
+
+.site-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+}
+
+.site-name-text {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.site-url-text {
+    color: var(--text-muted);
+    text-decoration: none;
+    word-break: break-all;
+}
+
+.site-url-text:hover {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+.btn-delete-site {
+    background: transparent;
+    border: none;
+    color: #ef4444;
+    opacity: 0.6;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-smooth);
+}
+
+.btn-delete-site:hover {
+    opacity: 1;
+    background-color: rgba(239, 68, 68, 0.05);
+}
+
+.requested-sites-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 5px;
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 12px;
+    border-radius: 8px;
+    margin: 0;
+}
+
+.btn-danger-outline {
+    background: transparent;
+    border: 1px solid #fee2e2;
+    color: #ef4444;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: var(--transition-smooth);
+}
+
+.btn-danger-outline:hover {
+    background-color: #fef2f2;
+    border-color: #fca5a5;
+}

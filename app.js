@@ -38,6 +38,7 @@ const sortSelect = document.getElementById('sort-select');
 document.addEventListener('DOMContentLoaded', () => {
     loadData();
     setupEventListeners();
+    initAddSiteFeature();
 });
 
 // Load CSV Data
@@ -282,4 +283,146 @@ function escapeHtml(unsafe) {
          .replace(/>/g, "&gt;")
          .replace(/"/g, "&quot;")
          .replace(/'/g, "&#039;");
+}
+
+// Add Site feature logic
+function initAddSiteFeature() {
+    const btnAddSite = document.getElementById('btn-add-site');
+    const btnClosePanel = document.getElementById('btn-close-panel');
+    const addSitePanel = document.getElementById('add-site-panel');
+    const addSiteForm = document.getElementById('add-site-form');
+    const requestedSitesList = document.getElementById('requested-sites-list');
+    const requestedSitesCount = document.getElementById('requested-sites-count');
+    const requestedSitesActions = document.getElementById('requested-sites-actions');
+    const btnCopyConfig = document.getElementById('btn-copy-config');
+    const btnClearRequested = document.getElementById('btn-clear-requested');
+    
+    let requestedSites = JSON.parse(localStorage.getItem('monitor_requested_sites') || '[]');
+    
+    // Toggle Panel
+    if (btnAddSite && addSitePanel) {
+        btnAddSite.addEventListener('click', () => {
+            const isHidden = addSitePanel.style.display === 'none';
+            addSitePanel.style.display = isHidden ? 'flex' : 'none';
+            if (isHidden) {
+                renderRequestedSites();
+            }
+        });
+    }
+    
+    if (btnClosePanel && addSitePanel) {
+        btnClosePanel.addEventListener('click', () => {
+            addSitePanel.style.display = 'none';
+        });
+    }
+    
+    // Form Submit
+    if (addSiteForm) {
+        addSiteForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('new-site-name');
+            const urlInput = document.getElementById('new-site-url');
+            
+            const name = nameInput.value.trim();
+            const url = urlInput.value.trim();
+            
+            if (name && url) {
+                requestedSites.push({
+                    id: Date.now(),
+                    name: name,
+                    url: url,
+                    date: new Date().toLocaleDateString('ko-KR')
+                });
+                
+                localStorage.setItem('monitor_requested_sites', JSON.stringify(requestedSites));
+                
+                nameInput.value = '';
+                urlInput.value = '';
+                
+                renderRequestedSites();
+            }
+        });
+    }
+    
+    // Copy for Admin
+    if (btnCopyConfig) {
+        btnCopyConfig.addEventListener('click', () => {
+            if (requestedSites.length === 0) return;
+            
+            // Format as a readable JSON or config list
+            const formatted = requestedSites.map(s => `- 사이트명: ${s.name}\n  URL: ${s.url}\n  등록일: ${s.date}`).join('\n\n');
+            
+            navigator.clipboard.writeText(formatted).then(() => {
+                const originalText = btnCopyConfig.querySelector('span').textContent;
+                btnCopyConfig.querySelector('span').textContent = '복사 완료!';
+                btnCopyConfig.style.borderColor = 'var(--primary-color)';
+                btnCopyConfig.style.color = 'var(--primary-color)';
+                
+                setTimeout(() => {
+                    btnCopyConfig.querySelector('span').textContent = originalText;
+                    btnCopyConfig.style.borderColor = '';
+                    btnCopyConfig.style.color = '';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('복사에 실패했습니다. 아래 텍스트를 직접 복사해 주세요:\n\n' + formatted);
+            });
+        });
+    }
+    
+    // Clear all
+    if (btnClearRequested) {
+        btnClearRequested.addEventListener('click', () => {
+            if (confirm('등록된 요청 목록을 모두 삭제하시겠습니까?')) {
+                requestedSites = [];
+                localStorage.setItem('monitor_requested_sites', JSON.stringify(requestedSites));
+                renderRequestedSites();
+            }
+        });
+    }
+    
+    // Render list
+    function renderRequestedSites() {
+        if (!requestedSitesList) return;
+        
+        requestedSitesList.innerHTML = '';
+        requestedSitesCount.textContent = requestedSites.length;
+        
+        if (requestedSites.length === 0) {
+            requestedSitesList.innerHTML = `<li style="color: var(--text-muted); font-size: 13px; padding: 16px 0; text-align: center;">등록된 요청 사이트가 없습니다.</li>`;
+            if (requestedSitesActions) requestedSitesActions.style.display = 'none';
+            return;
+        }
+        
+        if (requestedSitesActions) requestedSitesActions.style.display = 'flex';
+        
+        requestedSites.forEach(site => {
+            const li = document.createElement('li');
+            li.className = 'requested-site-item';
+            li.innerHTML = `
+                <div class="site-info">
+                    <span class="site-name-text">${escapeHtml(site.name)}</span>
+                    <a href="${escapeHtml(site.url)}" target="_blank" class="site-url-text">${escapeHtml(site.url)}</a>
+                </div>
+                <button class="btn-delete-site" data-id="${site.id}" title="삭제">
+                    <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                </button>
+            `;
+            requestedSitesList.appendChild(li);
+        });
+        
+        // Add delete listeners
+        const deleteButtons = requestedSitesList.querySelectorAll('.btn-delete-site');
+        deleteButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = parseInt(btn.getAttribute('data-id'));
+                requestedSites = requestedSites.filter(s => s.id !== id);
+                localStorage.setItem('monitor_requested_sites', JSON.stringify(requestedSites));
+                renderRequestedSites();
+            });
+        });
+        
+        // Initialize lucide icons for dynamic items
+        lucide.createIcons();
+    }
 }
