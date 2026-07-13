@@ -159,9 +159,10 @@ def scrape_soup_custom(site_config: dict) -> list:
             for page in range(1, 4):
                 urls_to_scrape.append((f"{url}&pageIndex={page}", "general"))
                 
-            # 2. Search queries (page 1 for "ai" and "인공지능")
+            # 2. Search queries (pages 1 to 4 for "ai" and "인공지능" to collect ~30+ items)
             for keyword in ["ai", "인공지능"]:
-                urls_to_scrape.append((f"{url}&searchCnd=0&searchWrd={keyword}&pageIndex=1", "search"))
+                for page in range(1, 5):
+                    urls_to_scrape.append((f"{url}&searchCnd=0&searchWrd={keyword}&pageIndex={page}", "search"))
                 
             for fetch_url, url_type in urls_to_scrape:
                 try:
