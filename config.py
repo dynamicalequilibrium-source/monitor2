@@ -48,6 +48,12 @@ TARGET_SITES = [
         "url": "https://www.mois.go.kr/frt/bbs/type010/commonSelectBoardList.do?bbsId=BBSMSTR_000000000008",
         "type": "soup",
         "parser": "mois_press"
+    },
+    {
+        "name": "과학기술정보통신부 보도자료",
+        "url": "https://www.msit.go.kr/bbs/list.do?sCode=user&mPid=103&mId=109",
+        "type": "soup",
+        "parser": "msit_press"
     }
 ]
 

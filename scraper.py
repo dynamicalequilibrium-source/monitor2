@@ -205,6 +205,110 @@ def scrape_soup_custom(site_config: dict) -> list:
                 except Exception as page_err:
                     print(f"[Scraper Warning] Failed to fetch press subpage {fetch_url}: {page_err}")
 
+        elif parser_type == "msit_press":
+            # We want to scrape multiple pages and search results
+            urls_to_scrape = []
+            
+            # 1. Base board pages (pages 1 to 2)
+            for page in range(1, 3):
+                urls_to_scrape.append((f"{url}&bbsSeqNo=84&pageIndex={page}", "general"))
+                
+            # 2. Search queries (pages 1 to 2 for "ai" and "인공지능")
+            for keyword in ["ai", "인공지능"]:
+                for page in range(1, 3):
+                    urls_to_scrape.append((f"{url}&bbsSeqNo=84&searchOpt=NTT_SJ&searchTxt={keyword}&pageIndex={page}", "search"))
+                    
+            # Parse month names for MSIT dates (e.g. Jul 9, 2026 -> 2026-07-09)
+            month_map = {
+                "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06",
+                "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
+            }
+            
+            def parse_msit_date(date_str):
+                if not date_str:
+                    return ""
+                match_eng = re.search(r'([A-Za-z]+)\s+(\d+),\s+(\d{4})', date_str)
+                if match_eng:
+                    mon_name, day, year = match_eng.groups()
+                    mon = month_map.get(mon_name, "01")
+                    return f"{year}-{mon}-{int(day):02d}"
+                match_iso = re.search(r'(\d{4})[.-](\d{2})[.-](\d{2})', date_str)
+                if match_iso:
+                    year, mon, day = match_iso.groups()
+                    return f"{year}-{mon}-{day}"
+                return date_str
+
+            for fetch_url, url_type in urls_to_scrape:
+                try:
+                    if fetch_url == f"{url}&bbsSeqNo=84&pageIndex=1":
+                        page_soup = soup
+                    else:
+                        print(f"[Scraper] Fetching MSIT page: {fetch_url}")
+                        page_res = requests.get(fetch_url, headers=config.HEADERS, timeout=15, verify=False)
+                        page_res.encoding = 'utf-8'
+                        page_soup = BeautifulSoup(page_res.text, "html.parser")
+                        
+                    # Find the script block containing row assignments
+                    script_text = ""
+                    for script in page_soup.find_all('script'):
+                        text = script.string or script.get_text()
+                        if "td_" in text and "sHtml" in text:
+                            script_text = text
+                            break
+                            
+                    if not script_text:
+                        continue
+                        
+                    # 1. Parse all dates from this script
+                    date_pattern = r"\$\('#td_'\+'REG_DT'\+'_(\d+)'\)\.html\('([^']+)'\);"
+                    date_matches = re.findall(date_pattern, script_text)
+                    dates_by_index = {int(idx_str): parse_msit_date(raw_date) for idx_str, raw_date in date_matches}
+                    
+                    # 2. Extract keys from onclick attributes in the page HTML
+                    keys_by_index = {}
+                    for a in page_soup.find_all('a', onclick=True):
+                        onclick = a['onclick']
+                        onclick_match = re.search(r'fn_detail\((\d+)\)', onclick)
+                        if onclick_match:
+                            key = onclick_match.group(1)
+                            child_div = a.find('div', id=True)
+                            if child_div:
+                                id_str = child_div['id']
+                                idx_match = re.search(r'_(\d+)$', id_str)
+                                if idx_match:
+                                    idx = int(idx_match.group(1))
+                                    keys_by_index[idx] = key
+                                    
+                    # 3. Split the script into blocks for each row
+                    blocks = script_text.split("var sHtml = replyHrml;")
+                    for idx, block in enumerate(blocks[1:]):
+                        # Extract NTTSeqNo (key)
+                        key_match = re.search(r'fn_detail\((\d+)\)', block)
+                        key = key_match.group(1) if key_match else keys_by_index.get(idx, "")
+                        
+                        # Extract title text from unescape calls
+                        title_parts = re.findall(r"unescape\('([^']+)'\)", block)
+                        title = ""
+                        for part in title_parts:
+                            import urllib.parse
+                            decoded = urllib.parse.unquote(part)
+                            if decoded and decoded not in ["ctgryHtml", "newHtml", "replyHrml"]:
+                                title += decoded
+                                
+                        post_date = dates_by_index.get(idx, "")
+                        
+                        if title and key:
+                            link = f"https://www.msit.go.kr/bbs/view.do?sCode=user&mPid=103&mId=109&nttSeqNo={key}"
+                            items.append({
+                                "source": name,
+                                "title": title.strip(),
+                                "link": link,
+                                "post_date": post_date,
+                                "collected_at": get_current_timestamp()
+                            })
+                except Exception as page_err:
+                    print(f"[Scraper Warning] Failed to fetch MSIT subpage {fetch_url}: {page_err}")
+
         elif parser_type is None:
             print(f"[Scraper Warning] No parser type specified for '{name}'. Skipping.")
         else:
