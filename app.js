@@ -516,6 +516,15 @@ function initAddSiteFeature() {
                             </p>
                         </div>
                     `;
+                } else if (token && (err.message.includes('401') || err.message.includes('403'))) {
+                    errorHtml += `
+                        <div class="token-input-box" style="margin-top: 15px; padding: 15px; background-color: var(--bg-main); border: 1px solid var(--border-color); border-radius: 12px; text-align: center;">
+                            <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px; line-height:1.5;">
+                                🔑 저장된 토큰이 만료되었거나 권한이 없습니다. (Status 401/403)
+                            </p>
+                            <button id="btn-error-clear-token" class="btn-secondary btn-sm" style="margin: 0 auto;">저장된 토큰 삭제하고 재시도</button>
+                        </div>
+                    `;
                 }
                 
                 requestedSitesList.innerHTML = errorHtml;
@@ -530,6 +539,15 @@ function initAddSiteFeature() {
                             localStorage.setItem('monitor_github_token', patInput.value.trim());
                             renderRequestedSites();
                         }
+                    });
+                }
+                
+                // Attach event listener for error clear token button
+                const btnErrorClearToken = document.getElementById('btn-error-clear-token');
+                if (btnErrorClearToken) {
+                    btnErrorClearToken.addEventListener('click', () => {
+                        localStorage.removeItem('monitor_github_token');
+                        renderRequestedSites();
                     });
                 }
             });
