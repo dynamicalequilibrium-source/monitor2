@@ -211,12 +211,12 @@ def scrape_soup_custom(site_config: dict) -> list:
             
             # 1. Base board pages (pages 1 to 2)
             for page in range(1, 3):
-                urls_to_scrape.append((f"{url}&bbsSeqNo=84&pageIndex={page}", "general"))
+                urls_to_scrape.append((f"{url}&bbsSeqNo=87&pageIndex={page}", "general"))
                 
             # 2. Search queries (pages 1 to 2 for "ai" and "인공지능")
             for keyword in ["ai", "인공지능"]:
                 for page in range(1, 3):
-                    urls_to_scrape.append((f"{url}&bbsSeqNo=84&searchOpt=NTT_SJ&searchTxt={keyword}&pageIndex={page}", "search"))
+                    urls_to_scrape.append((f"{url}&bbsSeqNo=87&searchOpt=NTT_SJ&searchTxt={keyword}&pageIndex={page}", "search"))
                     
             # Parse month names for MSIT dates (e.g. Jul 9, 2026 -> 2026-07-09)
             month_map = {
@@ -240,7 +240,7 @@ def scrape_soup_custom(site_config: dict) -> list:
 
             for fetch_url, url_type in urls_to_scrape:
                 try:
-                    if fetch_url == f"{url}&bbsSeqNo=84&pageIndex=1":
+                    if fetch_url == f"{url}&bbsSeqNo=87&pageIndex=1":
                         page_soup = soup
                     else:
                         print(f"[Scraper] Fetching MSIT page: {fetch_url}")
@@ -248,73 +248,41 @@ def scrape_soup_custom(site_config: dict) -> list:
                         page_res.encoding = 'utf-8'
                         page_soup = BeautifulSoup(page_res.text, "html.parser")
                         
-                    # Find the script block containing row assignments
-                    script_text = ""
-                    for script in page_soup.find_all('script'):
-                        text = script.string or script.get_text()
-                        if "td_" in text and "sHtml" in text:
-                            script_text = text
-                            break
-                            
-                    if not script_text:
-                        continue
-                        
-                    # 1. Parse all dates from this script
-                    date_pattern = r"\$\('#td_'\+'REG_DT'\+'_(\d+)'\)\.html\('([^']+)'\);"
-                    date_matches = re.findall(date_pattern, script_text)
-                    dates_by_index = {int(idx_str): parse_msit_date(raw_date) for idx_str, raw_date in date_matches}
-                    
-                    # 2. Extract keys from onclick attributes in the page HTML
-                    keys_by_index = {}
-                    for a in page_soup.find_all('a', onclick=True):
+                    # Find all <a> tags with onclick containing fn_detail
+                    a_tags = page_soup.find_all('a', onclick=True)
+                    for a in a_tags:
                         onclick = a['onclick']
-                        onclick_match = re.search(r'fn_detail\((\d+)\)', onclick)
+                        onclick_match = re.search(r"fn_detail\('(\d+)'\)", onclick)
                         if onclick_match:
                             key = onclick_match.group(1)
-                            child_div = a.find('div', id=True)
-                            if child_div:
-                                id_str = child_div['id']
-                                idx_match = re.search(r'_(\d+)$', id_str)
-                                if idx_match:
-                                    idx = int(idx_match.group(1))
-                                    keys_by_index[idx] = key
+                            
+                            # Find title in span.txt
+                            txt_span = a.find('span', class_='txt')
+                            title = txt_span.get_text().strip() if txt_span else a.get_text().strip()
+                            
+                            # Find date in span.date
+                            date_span = a.find('span', class_='date')
+                            raw_date = date_span.get_text().strip() if date_span else ""
+                            post_date = parse_msit_date(raw_date)
+                            
+                            # 4. Filter by date (Only keep articles within 1 month / 30 days from today)
+                            if post_date:
+                                try:
+                                    threshold_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+                                    if post_date < threshold_date:
+                                        continue # Skip articles older than 30 days
+                                except Exception as date_filter_err:
+                                    print(f"[Scraper Warning] Failed to filter MSIT date: {date_filter_err}")
                                     
-                    # 3. Split the script into blocks for each row
-                    blocks = script_text.split("var sHtml = replyHrml;")
-                    for idx, block in enumerate(blocks[1:]):
-                        # Extract NTTSeqNo (key)
-                        key_match = re.search(r'fn_detail\((\d+)\)', block)
-                        key = key_match.group(1) if key_match else keys_by_index.get(idx, "")
-                        
-                        # Extract title text from unescape calls
-                        title_parts = re.findall(r"unescape\('([^']+)'\)", block)
-                        title = ""
-                        for part in title_parts:
-                            import urllib.parse
-                            decoded = urllib.parse.unquote(part)
-                            if decoded and decoded not in ["ctgryHtml", "newHtml", "replyHrml"]:
-                                title += decoded
-                                
-                        post_date = dates_by_index.get(idx, "")
-                        
-                        # 4. Filter by date (Only keep articles within 1 month / 30 days from today)
-                        if post_date:
-                            try:
-                                threshold_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
-                                if post_date < threshold_date:
-                                    continue # Skip articles older than 30 days
-                            except Exception as date_filter_err:
-                                print(f"[Scraper Warning] Failed to filter MSIT date: {date_filter_err}")
-                                
-                        if title and key:
-                            link = f"https://www.msit.go.kr/bbs/view.do?sCode=user&mPid=103&mId=109&nttSeqNo={key}"
-                            items.append({
-                                "source": name,
-                                "title": title.strip(),
-                                "link": link,
-                                "post_date": post_date,
-                                "collected_at": get_current_timestamp()
-                            })
+                            if title and key:
+                                link = f"https://www.msit.go.kr/bbs/view.do?sCode=user&mPid=208&mId=213&bbsSeqNo=87&nttSeqNo={key}"
+                                items.append({
+                                    "source": name,
+                                    "title": title.strip(),
+                                    "link": link,
+                                    "post_date": post_date,
+                                    "collected_at": get_current_timestamp()
+                                })
                 except Exception as page_err:
                     print(f"[Scraper Warning] Failed to fetch MSIT subpage {fetch_url}: {page_err}")
 

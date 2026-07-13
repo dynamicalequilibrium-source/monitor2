@@ -51,7 +51,7 @@ TARGET_SITES = [
     },
     {
         "name": "과학기술정보통신부 보도자료",
-        "url": "https://www.msit.go.kr/bbs/list.do?sCode=user&mPid=103&mId=109",
+        "url": "https://www.msit.go.kr/bbs/list.do?sCode=user&mPid=208&mId=213",
         "type": "soup",
         "parser": "msit_press"
     }
