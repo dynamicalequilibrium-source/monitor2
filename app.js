@@ -439,9 +439,11 @@ function initAddSiteFeature() {
             e.preventDefault();
             const nameInput = document.getElementById('new-site-name');
             const urlInput = document.getElementById('new-site-url');
+            const descInput = document.getElementById('new-site-desc');
             
             const name = nameInput.value.trim();
             const url = urlInput.value.trim();
+            const desc = descInput ? descInput.value.trim() : '';
             
             if (name && url) {
                 // Construct GitHub Issue URL
@@ -450,6 +452,7 @@ function initAddSiteFeature() {
                     `## 📌 사이트 수집 요청 정보\n\n` +
                     `- **사이트명**: ${name}\n` +
                     `- **URL**: ${url}\n` +
+                    `- **추가정보**: ${desc || '없음'}\n` +
                     `- **요청일**: ${new Date().toLocaleDateString('ko-KR')}\n\n` +
                     `---\n*이 요청은 모니터링 대시보드를 통해 생성되었습니다. 관리자는 해당 사이트의 수집기(Way A/B)를 구현하고 이슈를 닫아주세요.*`
                 );
@@ -463,6 +466,7 @@ function initAddSiteFeature() {
                 // Clear form inputs
                 nameInput.value = '';
                 urlInput.value = '';
+                if (descInput) descInput.value = '';
                 
                 // Inform user and close modal
                 alert('깃허브 이슈(GitHub Issue) 작성 창이 열렸습니다.\n화면에서 [Submit new issue] 버튼을 누르면 등록이 최종 완료됩니다.');

@@ -840,7 +840,7 @@ body {
     color: var(--text-secondary);
 }
 
-.form-group input {
+.form-group input, .form-group textarea {
     background-color: var(--bg-surface);
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -851,9 +851,16 @@ body {
     transition: var(--transition-smooth);
 }
 
-.form-group input:focus {
+.form-group input:focus, .form-group textarea:focus {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.1);
+}
+
+.form-group textarea {
+    resize: vertical;
+    font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .form-submit-btn {
