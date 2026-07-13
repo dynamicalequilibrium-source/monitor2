@@ -6,7 +6,7 @@ let searchKeyword = '';
 let visibleCount = 15;
 
 // Sorting states
-let sortBy = 'id';
+let sortBy = 'date';
 let sortOrder = 'desc';
 
 // =============================================================================
