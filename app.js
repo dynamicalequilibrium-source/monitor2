@@ -9,6 +9,10 @@ let visibleCount = 15;
 let sortBy = 'date';
 let sortOrder = 'desc';
 
+// User Profile States
+let userProfiles = [];
+let activeUserId = 'ALL';
+
 // =============================================================================
 // Source name mappings and accent colors
 // =============================================================================
@@ -43,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadData();
     setupEventListeners();
     initAddSiteFeature();
+    initUserFeature();
 });
 
 // Load CSV Data
@@ -232,13 +237,38 @@ function sortData() {
 
 // Apply Search, Filters, and Sorting
 function applyFilters() {
+    const activeUser = activeUserId === 'ALL' ? null : userProfiles.find(u => u.id === activeUserId);
+    
     filteredProjects = projects.filter(p => {
         const matchesSource = activeSource === 'ALL' || p.source === activeSource;
         const matchesSearch = !searchKeyword || 
             p.title.toLowerCase().includes(searchKeyword) || 
             p.source.toLowerCase().includes(searchKeyword);
-        return matchesSource && matchesSearch;
+            
+        let matchesUser = true;
+        if (activeUser) {
+            const matchesUserSource = activeUser.subscribed_sources && activeUser.subscribed_sources.includes(p.source);
+            const matchesUserKeywords = !activeUser.keywords || activeUser.keywords.length === 0 || 
+                activeUser.keywords.some(kw => p.title.toLowerCase().includes(kw.toLowerCase()));
+            matchesUser = matchesUserSource && matchesUserKeywords;
+        }
+        
+        return matchesSource && matchesSearch && matchesUser;
     });
+    
+    // Update active user filter description banner
+    const filterDesc = document.getElementById('user-active-filter-desc');
+    const filterText = document.getElementById('user-filter-text');
+    if (filterDesc && filterText) {
+        if (activeUser) {
+            const kwStr = activeUser.keywords && activeUser.keywords.length > 0 ? activeUser.keywords.join(', ') : '전체 키워드';
+            const srcCount = activeUser.subscribed_sources ? activeUser.subscribed_sources.length : 0;
+            filterText.textContent = `[${activeUser.name}] 맞춤 필터 적용 중 (구독 기관: ${srcCount}개, 관심 키워드: ${kwStr})`;
+            filterDesc.style.display = 'inline-flex';
+        } else {
+            filterDesc.style.display = 'none';
+        }
+    }
     
     sortData();
     renderGrid();
@@ -665,5 +695,274 @@ function initAddSiteFeature() {
                     });
                 }
             });
+    }
+}
+
+// =============================================================================
+// User Profiles & Custom Subscriptions Feature
+// =============================================================================
+function initUserFeature() {
+    const userChipsContainer = document.getElementById('user-chips');
+    const btnManageUsers = document.getElementById('btn-manage-users');
+    const userManageModal = document.getElementById('user-manage-modal');
+    const btnCloseUsers = document.getElementById('btn-close-users');
+    const userForm = document.getElementById('user-form');
+    const userFormId = document.getElementById('user-form-id');
+    const userFormName = document.getElementById('user-form-name');
+    const userFormSources = document.getElementById('user-form-sources');
+    const userFormKeywords = document.getElementById('user-form-keywords');
+    const btnUserCancel = document.getElementById('btn-user-cancel');
+    const userList = document.getElementById('user-list');
+    
+    // Load preseeded profiles and local custom profiles
+    const localProfiles = localStorage.getItem('dashboard_user_profiles');
+    if (localProfiles) {
+        userProfiles = JSON.parse(localProfiles);
+        renderUserChips();
+    } else {
+        // Fetch users.json
+        fetch(`/data/users.json?t=${new Date().getTime()}`)
+            .then(res => res.json())
+            .then(data => {
+                userProfiles = data;
+                localStorage.setItem('dashboard_user_profiles', JSON.stringify(userProfiles));
+                renderUserChips();
+            })
+            .catch(err => {
+                console.error("Failed to load users.json:", err);
+                userProfiles = [];
+                renderUserChips();
+            });
+    }
+    
+    // Open management modal
+    if (btnManageUsers && userManageModal) {
+        btnManageUsers.addEventListener('click', () => {
+            userManageModal.style.display = 'flex';
+            populateFormSources();
+            renderUserList();
+            resetUserForm();
+        });
+    }
+    
+    // Close modal
+    if (btnCloseUsers && userManageModal) {
+        btnCloseUsers.addEventListener('click', () => {
+            userManageModal.style.display = 'none';
+        });
+    }
+    
+    if (userManageModal) {
+        userManageModal.addEventListener('click', (e) => {
+            if (e.target === userManageModal) {
+                userManageModal.style.display = 'none';
+            }
+        });
+    }
+    
+    // Cancel editing
+    if (btnUserCancel) {
+        btnUserCancel.addEventListener('click', () => {
+            resetUserForm();
+        });
+    }
+    
+    // Form submission (Add / Edit)
+    if (userForm) {
+        userForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = userFormName.value.trim();
+            const id = userFormId.value;
+            
+            // Collect checked sources
+            const checkedSources = [];
+            const checkboxes = userFormSources.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                if (cb.checked) checkedSources.push(cb.value);
+            });
+            
+            // Parse keywords
+            const kwVal = userFormKeywords.value.trim();
+            const keywords = kwVal ? kwVal.split(',').map(s => s.trim()).filter(Boolean) : [];
+            
+            if (!name) return;
+            
+            if (id) {
+                // Edit existing
+                const idx = userProfiles.findIndex(u => u.id === id);
+                if (idx !== -1) {
+                    userProfiles[idx].name = name;
+                    userProfiles[idx].subscribed_sources = checkedSources;
+                    userProfiles[idx].keywords = keywords;
+                }
+            } else {
+                // Add new
+                const newId = `user_${Date.now()}`;
+                userProfiles.push({
+                    id: newId,
+                    name: name,
+                    subscribed_sources: checkedSources,
+                    keywords: keywords
+                });
+            }
+            
+            // Save & re-render
+            localStorage.setItem('dashboard_user_profiles', JSON.stringify(userProfiles));
+            renderUserChips();
+            renderUserList();
+            resetUserForm();
+            applyFilters();
+            
+            alert('사용자 정보가 성공적으로 저장되었습니다.');
+        });
+    }
+    
+    // Render chips in main panel
+    function renderUserChips() {
+        if (!userChipsContainer) return;
+        
+        userChipsContainer.innerHTML = `<button class="user-chip ${activeUserId === 'ALL' ? 'active' : ''}" data-user-id="ALL"><i data-lucide="globe" style="width:13px; height:13px;"></i>전체보기</button>`;
+        
+        userProfiles.forEach(user => {
+            const btn = document.createElement('button');
+            btn.className = `user-chip ${activeUserId === user.id ? 'active' : ''}`;
+            btn.setAttribute('data-user-id', user.id);
+            btn.innerHTML = `<i data-lucide="user" style="width:13px; height:13px;"></i>${escapeHtml(user.name)}`;
+            userChipsContainer.appendChild(btn);
+        });
+        
+        // Add click handlers
+        userChipsContainer.querySelectorAll('.user-chip').forEach(btn => {
+            btn.addEventListener('click', () => {
+                userChipsContainer.querySelectorAll('.user-chip').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                activeUserId = btn.getAttribute('data-user-id');
+                visibleCount = 15;
+                applyFilters();
+            });
+        });
+        
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+    
+    // Render user list inside modal
+    function renderUserList() {
+        if (!userList) return;
+        
+        if (userProfiles.length === 0) {
+            userList.innerHTML = `<li style="color: var(--text-muted); font-size:13px; padding:16px 0; text-align:center;">등록된 사용자가 없습니다.</li>`;
+            return;
+        }
+        
+        userList.innerHTML = '';
+        userProfiles.forEach(user => {
+            const li = document.createElement('li');
+            li.className = 'requested-site-item';
+            
+            const kwStr = user.keywords && user.keywords.length > 0 ? user.keywords.join(', ') : '전체 키워드';
+            const srcCount = user.subscribed_sources ? user.subscribed_sources.length : 0;
+            
+            li.innerHTML = `
+                <div class="site-info">
+                    <span class="site-name-text"><i data-lucide="user" style="width:13px; height:13px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>${escapeHtml(user.name)}</span>
+                    <span style="font-size:11px; color:var(--text-secondary); margin-top:2px;">구독 기관: ${srcCount}개 | 키워드: ${escapeHtml(kwStr)}</span>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button class="btn-secondary btn-sm btn-edit-user" data-id="${user.id}" style="padding: 4px 8px; font-size:11px; margin:0;"><i data-lucide="edit-2" style="width:12px; height:12px;"></i></button>
+                    <button class="btn-secondary btn-sm btn-delete-user" data-id="${user.id}" style="padding: 4px 8px; font-size:11px; color:#ef4444; margin:0;"><i data-lucide="trash-2" style="width:12px; height:12px;"></i></button>
+                </div>
+            `;
+            userList.appendChild(li);
+        });
+        
+        // Attach list button handlers
+        userList.querySelectorAll('.btn-edit-user').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-id');
+                const user = userProfiles.find(u => u.id === id);
+                if (user) {
+                    userFormId.value = user.id;
+                    userFormName.value = user.name;
+                    userFormKeywords.value = user.keywords ? user.keywords.join(', ') : '';
+                    
+                    // Check checkboxes
+                    const checkboxes = userFormSources.querySelectorAll('input[type="checkbox"]');
+                    checkboxes.forEach(cb => {
+                        cb.checked = user.subscribed_sources && user.subscribed_sources.includes(cb.value);
+                    });
+                    
+                    btnUserCancel.style.display = 'block';
+                    document.getElementById('btn-user-submit').innerHTML = `<i data-lucide="check" style="width:14px; height:14px;"></i>수정 완료`;
+                    userFormName.focus();
+                    if (window.lucide) window.lucide.createIcons();
+                }
+            });
+        });
+        
+        userList.querySelectorAll('.btn-delete-user').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-id');
+                const user = userProfiles.find(u => u.id === id);
+                if (user && confirm(`'${user.name}' 사용자를 삭제하시겠습니까?`)) {
+                    userProfiles = userProfiles.filter(u => u.id !== id);
+                    localStorage.setItem('dashboard_user_profiles', JSON.stringify(userProfiles));
+                    
+                    if (activeUserId === id) {
+                        activeUserId = 'ALL';
+                    }
+                    
+                    renderUserChips();
+                    renderUserList();
+                    resetUserForm();
+                    applyFilters();
+                }
+            });
+        });
+        
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+    
+    // Populate form source checkboxes based on actual target sites in dashboard config
+    function populateFormSources() {
+        if (!userFormSources) return;
+        
+        // Get all unique sources currently available in dashboard
+        const uniqueSources = new Set();
+        projects.forEach(p => {
+            if (p.source) uniqueSources.add(p.source);
+        });
+        
+        // If empty (e.g. before data loaded), use keys from sourceConfig or preseed configs
+        if (uniqueSources.size === 0) {
+            Object.keys(sourceConfig).forEach(src => uniqueSources.add(src));
+        }
+        
+        userFormSources.innerHTML = '';
+        Array.from(uniqueSources).sort().forEach(src => {
+            const conf = sourceConfig[src] || { shortName: src };
+            const label = document.createElement('label');
+            label.className = 'source-checkbox-label';
+            label.innerHTML = `<input type="checkbox" value="${escapeHtml(src)}"> <span>${escapeHtml(conf.shortName)}</span>`;
+            userFormSources.appendChild(label);
+        });
+    }
+    
+    // Reset User form fields
+    function resetUserForm() {
+        if (!userForm) return;
+        userFormId.value = '';
+        userFormName.value = '';
+        userFormKeywords.value = '';
+        
+        const checkboxes = userFormSources.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = false);
+        
+        if (btnUserCancel) btnUserCancel.style.display = 'none';
+        document.getElementById('btn-user-submit').innerHTML = `<i data-lucide="check" style="width:14px; height:14px;"></i>저장하기`;
+        if (window.lucide) window.lucide.createIcons();
     }
 }

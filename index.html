@@ -97,6 +97,53 @@
             </section>
         </div>
 
+        <!-- User Management Modal Overlay -->
+        <div id="user-manage-modal" class="modal-overlay" style="display: none;">
+            <section class="add-site-panel" style="max-width: 500px;">
+                <div class="panel-header">
+                    <h3><i data-lucide="users" class="panel-icon"></i> 모니터링 사용자 관리</h3>
+                    <button id="btn-close-users" class="btn-icon-only"><i data-lucide="x"></i></button>
+                </div>
+                
+                <div class="panel-content">
+                    <p class="panel-desc">이름을 추가하거나 편집하고, 각 사용자별로 알림을 받고 싶은 사이트와 관심 키워드를 설정해 맞춤 모니터링을 구성하세요.</p>
+                    
+                    <!-- User Form (Add / Edit) -->
+                    <form id="user-form" class="add-site-form" style="padding: 16px; border-radius: 12px; gap: 12px; margin-bottom: 5px;">
+                        <input type="hidden" id="user-form-id" value="">
+                        <div class="form-group">
+                            <label for="user-form-name">사용자 이름</label>
+                            <input type="text" id="user-form-name" placeholder="예: 김대표, 이팀장" required>
+                        </div>
+                        <div class="form-group">
+                            <label>구독할 사이트 (모니터링 대상)</label>
+                            <div id="user-form-sources" style="display: flex; flex-direction: column; gap: 8px; max-height: 120px; overflow-y: auto; padding: 8px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px;">
+                                <!-- Dynamic checkboxes of target sites -->
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="user-form-keywords">관심 키워드 (쉼표로 구분)</label>
+                            <input type="text" id="user-form-keywords" placeholder="예: ai, 인공지능, 지원금 (비워둘 시 전체 보기)">
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="submit" id="btn-user-submit" class="btn-primary" style="flex: 1; height: 38px; font-size: 13px; justify-content: center; align-items: center; display: inline-flex; gap: 6px; border-radius: 8px;">
+                                <i data-lucide="check" style="width: 14px; height: 14px;"></i>저장하기
+                            </button>
+                            <button type="button" id="btn-user-cancel" class="btn-secondary" style="height: 38px; padding: 0 16px; font-size: 13px; border-radius: 8px; display: none;">취소</button>
+                        </div>
+                    </form>
+                    
+                    <!-- Users List -->
+                    <div class="requested-sites-list-container">
+                        <h4>등록된 사용자 목록</h4>
+                        <ul id="user-list" class="requested-sites-list" style="max-height: 180px;">
+                            <!-- Dynamic items -->
+                        </ul>
+                    </div>
+                </div>
+            </section>
+        </div>
+
         <!-- Announcement Details Modal Overlay -->
         <div id="project-detail-modal" class="modal-overlay" style="display: none;">
             <section class="add-site-panel" style="max-width: 550px;">
@@ -147,6 +194,26 @@
                 </div>
             </section>
         </div>
+
+        <!-- User Profile Selection Bar -->
+        <section class="user-profile-section" style="margin-bottom: 16px;">
+            <div class="user-profile-bar">
+                <span class="user-profile-label">
+                    <i data-lucide="users" class="user-label-icon"></i>사용자별 모니터링:
+                </span>
+                <div class="user-chips-container" id="user-chips">
+                    <button class="user-chip active" data-user-id="ALL">전체보기</button>
+                    <!-- Dynamically populated user chips -->
+                </div>
+                <button id="btn-manage-users" class="btn-manage-users" title="사용자 추가 및 편집">
+                    <i data-lucide="user-cog"></i><span>사용자 설정</span>
+                </button>
+            </div>
+            <div id="user-active-filter-desc" class="user-active-filter-desc" style="display: none;">
+                <i data-lucide="filter"></i>
+                <span id="user-filter-text"></span>
+            </div>
+        </section>
 
         <!-- Search & Filter Controls -->
         <section class="controls-card">
