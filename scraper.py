@@ -103,67 +103,106 @@ def scrape_soup_custom(site_config: dict) -> list:
         # =====================================================================
 
         if parser_type == "mois_notice":
-            # Find all a links with href containing BBSMSTR_000000000010 and nttId
-            for a in soup.find_all('a', href=True):
-                href = a['href']
-                raw_text = a.get_text()
+            # We want to scrape multiple pages and search results
+            urls_to_scrape = []
+            
+            # 1. Base board pages (pages 1 to 3)
+            for page in range(1, 4):
+                urls_to_scrape.append((f"{url}&pageIndex={page}", "general"))
                 
-                if "BBSMSTR_000000000010" in href and "nttId" in href:
-                    # Clean title and extract date
-                    title = clean_text(raw_text)
-                    
-                    # Match date (e.g. 2026.07.13. or 2026-07-13)
-                    post_date = ""
-                    date_match = re.search(r'\d{4}[.-]\d{2}[.-]\d{2}', title)
-                    if date_match:
-                        post_date = date_match.group(0).replace(".", "-")
-                        # Remove date from the title text
-                        title = title.replace(date_match.group(0), "").strip()
-                        # Clean up trailing periods, commas, or parentheses if any
-                        title = re.sub(r'[\s.,\-\(\)]+$', '', title).strip()
+            # 2. Search queries (page 1 for "ai" and "인공지능")
+            for keyword in ["ai", "인공지능"]:
+                urls_to_scrape.append((f"{url}&searchCnd=0&searchWrd={keyword}&pageIndex=1", "search"))
+                
+            for fetch_url, url_type in urls_to_scrape:
+                try:
+                    if fetch_url == f"{url}&pageIndex=1":
+                        page_soup = soup
+                    else:
+                        print(f"[Scraper] Fetching notice page: {fetch_url}")
+                        page_res = requests.get(fetch_url, headers=config.HEADERS, timeout=12, verify=False)
+                        page_res.encoding = page_res.apparent_encoding or 'utf-8'
+                        page_soup = BeautifulSoup(page_res.text, "html.parser")
                         
-                    if title:
-                        link = urljoin(url, href)
-                        link = re.sub(r';jsessionid=[^?]+', '', link) # strip jsessionid
-                        items.append({
-                            "source": name,
-                            "title": title,
-                            "link": link,
-                            "post_date": post_date,
-                            "collected_at": get_current_timestamp()
-                        })
-
-        elif parser_type == "mois_press":
-            # For type010 page, parse tbody table rows
-            tbody = soup.find('tbody')
-            if tbody:
-                rows = tbody.find_all('tr')
-                for row in rows:
-                    cols = row.find_all(['td', 'th'])
-                    a = row.find('a', href=True)
-                    if a and "BBSMSTR_000000000008" in a['href'] and "nttId" in a['href']:
-                        title = clean_text(a.get_text())
+                    for a in page_soup.find_all('a', href=True):
                         href = a['href']
+                        raw_text = a.get_text()
                         
-                        # Find date in columns
-                        post_date = ""
-                        for td in cols:
-                            text_content = td.get_text().strip()
-                            date_match = re.search(r'\d{4}[.-]\d{2}[.-]\d{2}', text_content)
+                        if "BBSMSTR_000000000010" in href and "nttId" in href:
+                            title = clean_text(raw_text)
+                            
+                            post_date = ""
+                            date_match = re.search(r'\d{4}[.-]\d{2}[.-]\d{2}', title)
                             if date_match:
                                 post_date = date_match.group(0).replace(".", "-")
-                                break
+                                title = title.replace(date_match.group(0), "").strip()
+                                title = re.sub(r'[\s.,\-\(\)]+$', '', title).strip()
                                 
-                        if title:
-                            link = urljoin(url, href)
-                            link = re.sub(r';jsessionid=[^?]+', '', link)
-                            items.append({
-                                "source": name,
-                                "title": title,
-                                "link": link,
-                                "post_date": post_date,
-                                "collected_at": get_current_timestamp()
-                            })
+                            if title:
+                                link = urljoin(url, href)
+                                link = re.sub(r';jsessionid=[^?]+', '', link) # strip jsessionid
+                                items.append({
+                                    "source": name,
+                                    "title": title,
+                                    "link": link,
+                                    "post_date": post_date,
+                                    "collected_at": get_current_timestamp()
+                                })
+                except Exception as page_err:
+                    print(f"[Scraper Warning] Failed to fetch notice subpage {fetch_url}: {page_err}")
+
+        elif parser_type == "mois_press":
+            # We want to scrape multiple pages and search results
+            urls_to_scrape = []
+            
+            # 1. Base board pages (pages 1 to 3)
+            for page in range(1, 4):
+                urls_to_scrape.append((f"{url}&pageIndex={page}", "general"))
+                
+            # 2. Search queries (page 1 for "ai" and "인공지능")
+            for keyword in ["ai", "인공지능"]:
+                urls_to_scrape.append((f"{url}&searchCnd=0&searchWrd={keyword}&pageIndex=1", "search"))
+                
+            for fetch_url, url_type in urls_to_scrape:
+                try:
+                    if fetch_url == f"{url}&pageIndex=1":
+                        page_soup = soup
+                    else:
+                        print(f"[Scraper] Fetching press page: {fetch_url}")
+                        page_res = requests.get(fetch_url, headers=config.HEADERS, timeout=12, verify=False)
+                        page_res.encoding = page_res.apparent_encoding or 'utf-8'
+                        page_soup = BeautifulSoup(page_res.text, "html.parser")
+                        
+                    tbody = page_soup.find('tbody')
+                    if tbody:
+                        rows = tbody.find_all('tr')
+                        for row in rows:
+                            cols = row.find_all(['td', 'th'])
+                            a = row.find('a', href=True)
+                            if a and "BBSMSTR_000000000008" in a['href'] and "nttId" in a['href']:
+                                title = clean_text(a.get_text())
+                                href = a['href']
+                                
+                                post_date = ""
+                                for td in cols:
+                                    text_content = td.get_text().strip()
+                                    date_match = re.search(r'\d{4}[.-]\d{2}[.-]\d{2}', text_content)
+                                    if date_match:
+                                        post_date = date_match.group(0).replace(".", "-")
+                                        break
+                                        
+                                if title:
+                                    link = urljoin(url, href)
+                                    link = re.sub(r';jsessionid=[^?]+', '', link)
+                                    items.append({
+                                        "source": name,
+                                        "title": title,
+                                        "link": link,
+                                        "post_date": post_date,
+                                        "collected_at": get_current_timestamp()
+                                    })
+                except Exception as page_err:
+                    print(f"[Scraper Warning] Failed to fetch press subpage {fetch_url}: {page_err}")
 
         elif parser_type is None:
             print(f"[Scraper Warning] No parser type specified for '{name}'. Skipping.")
