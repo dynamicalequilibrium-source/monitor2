@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import feedparser
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 from urllib.parse import urljoin
 import config
@@ -297,6 +297,15 @@ def scrape_soup_custom(site_config: dict) -> list:
                                 
                         post_date = dates_by_index.get(idx, "")
                         
+                        # 4. Filter by date (Only keep articles within 1 month / 30 days from today)
+                        if post_date:
+                            try:
+                                threshold_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+                                if post_date < threshold_date:
+                                    continue # Skip articles older than 30 days
+                            except Exception as date_filter_err:
+                                print(f"[Scraper Warning] Failed to filter MSIT date: {date_filter_err}")
+                                
                         if title and key:
                             link = f"https://www.msit.go.kr/bbs/view.do?sCode=user&mPid=103&mId=109&nttSeqNo={key}"
                             items.append({
