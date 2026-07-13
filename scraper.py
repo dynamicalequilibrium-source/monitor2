@@ -102,7 +102,7 @@ def scrape_soup_custom(site_config: dict) -> list:
         #
         # =====================================================================
 
-        if parser_type == "mois":
+        if parser_type == "mois_notice":
             # Find all a links with href containing BBSMSTR_000000000010 and nttId
             for a in soup.find_all('a', href=True):
                 href = a['href']
@@ -132,6 +132,38 @@ def scrape_soup_custom(site_config: dict) -> list:
                             "post_date": post_date,
                             "collected_at": get_current_timestamp()
                         })
+
+        elif parser_type == "mois_press":
+            # For type010 page, parse tbody table rows
+            tbody = soup.find('tbody')
+            if tbody:
+                rows = tbody.find_all('tr')
+                for row in rows:
+                    cols = row.find_all(['td', 'th'])
+                    a = row.find('a', href=True)
+                    if a and "BBSMSTR_000000000008" in a['href'] and "nttId" in a['href']:
+                        title = clean_text(a.get_text())
+                        href = a['href']
+                        
+                        # Find date in columns
+                        post_date = ""
+                        for td in cols:
+                            text_content = td.get_text().strip()
+                            date_match = re.search(r'\d{4}[.-]\d{2}[.-]\d{2}', text_content)
+                            if date_match:
+                                post_date = date_match.group(0).replace(".", "-")
+                                break
+                                
+                        if title:
+                            link = urljoin(url, href)
+                            link = re.sub(r';jsessionid=[^?]+', '', link)
+                            items.append({
+                                "source": name,
+                                "title": title,
+                                "link": link,
+                                "post_date": post_date,
+                                "collected_at": get_current_timestamp()
+                            })
 
         elif parser_type is None:
             print(f"[Scraper Warning] No parser type specified for '{name}'. Skipping.")

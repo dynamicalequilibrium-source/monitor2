@@ -38,10 +38,16 @@ SCHEDULE_TIME = "09:00"
 
 TARGET_SITES = [
     {
-        "name": "행정안전부",
+        "name": "행정안전부 고시공고",
         "url": "https://www.mois.go.kr/frt/bbs/type002/commonSelectBoardList.do?bbsId=BBSMSTR_000000000010",
         "type": "soup",
-        "parser": "mois"
+        "parser": "mois_notice"
+    },
+    {
+        "name": "행정안전부 보도자료",
+        "url": "https://www.mois.go.kr/frt/bbs/type010/commonSelectBoardList.do?bbsId=BBSMSTR_000000000008",
+        "type": "soup",
+        "parser": "mois_press"
     }
 ]
 
