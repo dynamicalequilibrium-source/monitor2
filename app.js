@@ -138,6 +138,29 @@ function setupEventListeners() {
         sortOrder = parts[1];
         applyFilters();
     });
+    
+    // Detail Modal closing
+    const detailModal = document.getElementById('project-detail-modal');
+    const btnCloseDetail = document.getElementById('btn-close-detail');
+    const btnDetailCloseBottom = document.getElementById('btn-detail-close-bottom');
+    
+    if (btnCloseDetail && detailModal) {
+        btnCloseDetail.addEventListener('click', () => {
+            detailModal.style.display = 'none';
+        });
+    }
+    if (btnDetailCloseBottom && detailModal) {
+        btnDetailCloseBottom.addEventListener('click', () => {
+            detailModal.style.display = 'none';
+        });
+    }
+    if (detailModal) {
+        detailModal.addEventListener('click', (e) => {
+            if (e.target === detailModal) {
+                detailModal.style.display = 'none';
+            }
+        });
+    }
 }
 
 // Generate Source Filter Chips
@@ -246,7 +269,7 @@ function renderGrid() {
             <td style="color: var(--text-secondary); font-weight: 500;">${idx + 1}</td>
             <td><span class="table-source-tag">${conf.shortName}</span></td>
             <td>
-                <a href="${escapeHtml(p.link)}" target="_blank" class="table-title-link" title="${escapeHtml(p.title)}">
+                <a href="#" class="table-title-link btn-show-detail" data-id="${p.id}" title="${escapeHtml(p.title)}">
                     ${escapeHtml(p.title)}
                 </a>
             </td>
@@ -254,6 +277,16 @@ function renderGrid() {
             <td class="table-date-cell">${escapeHtml(displayColDate)}</td>
         `;
         projectsListBody.appendChild(tr);
+    });
+    
+    // Add event listeners to detail buttons
+    const btnShowDetails = projectsListBody.querySelectorAll('.btn-show-detail');
+    btnShowDetails.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const id = parseInt(btn.getAttribute('data-id'));
+            showProjectDetail(id);
+        });
     });
     
     showingCountText.textContent = `전체 ${filteredProjects.length}건 중 ${itemsToRender.length}건 표시 중`;
@@ -264,6 +297,76 @@ function renderGrid() {
         paginationContainer.style.display = 'none';
     }
     
+    lucide.createIcons();
+}
+
+// Show Project Detail Modal
+function showProjectDetail(id) {
+    const project = projects.find(p => p.id === id);
+    if (!project) return;
+    
+    const detailModal = document.getElementById('project-detail-modal');
+    const detailSource = document.getElementById('detail-source');
+    const detailTitle = document.getElementById('detail-title');
+    const detailRegDate = document.getElementById('detail-reg-date');
+    const detailColDate = document.getElementById('detail-col-date');
+    const detailAiSummary = document.getElementById('detail-ai-summary');
+    const detailAiTags = document.getElementById('detail-ai-tags');
+    const detailVisitLink = document.getElementById('detail-visit-link');
+    
+    if (!detailModal) return;
+    
+    // Set text contents
+    detailSource.textContent = project.source;
+    detailTitle.textContent = project.title;
+    detailRegDate.textContent = project.post_date || "미표기";
+    detailColDate.textContent = project.collected_at ? project.collected_at.split(' ')[0] : "미표기";
+    detailVisitLink.href = project.link;
+    
+    // Customize source colors dynamically
+    const conf = sourceConfig[project.source] || { color: "var(--primary-color)" };
+    detailSource.style.backgroundColor = conf.color + "20"; // 12% opacity
+    detailSource.style.color = conf.color;
+    detailSource.style.borderColor = conf.color + "40";
+    
+    // Generate dynamic AI Summary based on title keywords
+    let summaryText = "";
+    let tags = [];
+    
+    const title = project.title.toLowerCase();
+    
+    // Clean prefix tags like [보도자료] or [공고]
+    const cleanTitle = project.title.replace(/^\[[^\]]+\]\s*/, '');
+    
+    if (title.includes("인공지능") || title.includes("ai")) {
+        summaryText = `행정안전부에서 인공지능(AI) 기술 및 인프라 활성화를 위해 발표한 '${cleanTitle}' 관련 공고입니다. AI 혁신 및 공공 서비스 품질 향상을 위한 내용이 담겨 있습니다.`;
+        tags.push("인공지능", "AI 혁신");
+    } else if (title.includes("재난") || title.includes("안전") || title.includes("호우") || title.includes("대처")) {
+        summaryText = `행정안전부의 국민 안전 관리 및 재난 대책 관련 공고인 '${cleanTitle}'입니다. 재난 발생 예방과 시설물 점검, 신속한 현장 대응 지침 등을 핵심으로 다루고 있습니다.`;
+        tags.push("재난안전", "국민보호");
+    } else if (title.includes("지원") || title.includes("공모")) {
+        summaryText = `새로운 성장 동력을 마련하기 위해 정부 부처에서 주관하는 지원 사업 공고인 '${cleanTitle}'입니다. 조건에 부합하는 대상자 및 기관은 원본 링크를 통해 사업비 지원 혜택 및 공모 절차를 확인해 보시기 바랍니다.`;
+        tags.push("정부지원", "공모사업");
+    } else {
+        summaryText = `정부 부처에서 발표한 정책 공고인 '${cleanTitle}'입니다. 관련 분야의 최신 고시 사항과 행정 지침을 담고 있으며, 자세한 조건 및 혜택은 원본 사이트 공고문을 참조해 주시기 바랍니다.`;
+        tags.push("정부정책", "행정공고");
+    }
+    
+    detailAiSummary.textContent = summaryText;
+    
+    // Generate tag elements
+    detailAiTags.innerHTML = "";
+    tags.forEach(tag => {
+        const span = document.createElement('span');
+        span.style.cssText = "font-size: 11px; padding: 2px 8px; border-radius: 6px; background-color: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-secondary);";
+        span.textContent = "#" + tag;
+        detailAiTags.appendChild(span);
+    });
+    
+    // Display modal
+    detailModal.style.display = 'flex';
+    
+    // Initialize icons in modal
     lucide.createIcons();
 }
 
