@@ -443,6 +443,18 @@ function initAddSiteFeature() {
     if (btnAddSite && addSiteModal) {
         btnAddSite.addEventListener('click', () => {
             addSiteModal.style.display = 'flex';
+            
+            // Pre-fill requester name if an active user profile is selected
+            const requesterInput = document.getElementById('new-site-requester');
+            if (requesterInput) {
+                if (activeUserId !== 'ALL') {
+                    const activeUser = userProfiles.find(u => u.id === activeUserId);
+                    requesterInput.value = activeUser ? activeUser.name : '';
+                } else {
+                    requesterInput.value = '';
+                }
+            }
+            
             renderRequestedSites();
         });
     }
@@ -467,19 +479,22 @@ function initAddSiteFeature() {
     if (addSiteForm) {
         addSiteForm.addEventListener('submit', (e) => {
             e.preventDefault();
+            const requesterInput = document.getElementById('new-site-requester');
             const nameInput = document.getElementById('new-site-name');
             const urlInput = document.getElementById('new-site-url');
             const descInput = document.getElementById('new-site-desc');
             
+            const requester = requesterInput ? requesterInput.value.trim() : '';
             const name = nameInput.value.trim();
             const url = urlInput.value.trim();
             const desc = descInput ? descInput.value.trim() : '';
             
-            if (name && url) {
+            if (name && url && requester) {
                 // Construct GitHub Issue URL
-                const title = encodeURIComponent(`[사이트 수집 요청] ${name}`);
+                const title = encodeURIComponent(`[사이트 수집 요청] ${name} (요청자: ${requester})`);
                 const body = encodeURIComponent(
                     `## 📌 사이트 수집 요청 정보\n\n` +
+                    `- **요청자**: ${requester}\n` +
                     `- **사이트명**: ${name}\n` +
                     `- **URL**: ${url}\n` +
                     `- **추가정보**: ${desc || '없음'}\n` +
@@ -494,6 +509,7 @@ function initAddSiteFeature() {
                 window.open(issueUrl, '_blank');
                 
                 // Clear form inputs
+                if (requesterInput) requesterInput.value = '';
                 nameInput.value = '';
                 urlInput.value = '';
                 if (descInput) descInput.value = '';
@@ -594,13 +610,22 @@ function initAddSiteFeature() {
                         url = httpMatch ? httpMatch[0] : issue.html_url;
                     }
                     
+                    // Parse requester
+                    let requester = '';
+                    const reqMatch = body.match(/- \*\*요청자\*\*:\s*([^\n]+)/i);
+                    if (reqMatch) {
+                        requester = reqMatch[1].trim();
+                    }
+                    
                     // Clean up title
                     let name = issue.title.replace(/\[사이트\s*수집\s*요청\]/g, '').trim();
+                    name = name.replace(/\(요청자:\s*[^\)]+\)/i, '').trim();
                     
                     return {
                         id: issue.id,
                         name: name || '이름 없음',
                         url: url,
+                        requester: requester,
                         html_url: issue.html_url,
                         number: issue.number,
                         author: issue.user ? issue.user.login : 'unknown',
@@ -625,7 +650,11 @@ function initAddSiteFeature() {
                     li.className = 'requested-site-item';
                     li.innerHTML = `
                         <div class="site-info">
-                            <span class="site-name-text">${escapeHtml(site.name)} <span style="font-size:11px; font-weight:normal; color:var(--text-muted); display:inline-block; margin-left:4px;">#${site.number} (${site.author})</span></span>
+                            <span class="site-name-text">
+                                ${escapeHtml(site.name)}
+                                ${site.requester ? `<span style="font-size: 10px; padding: 1px 6px; border-radius: 4px; background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-secondary); margin-left: 6px; font-weight: normal; vertical-align: middle;">${escapeHtml(site.requester)}</span>` : ''}
+                                <span style="font-size:11px; font-weight:normal; color:var(--text-muted); display:inline-block; margin-left:4px;">#${site.number}</span>
+                            </span>
                             <a href="${escapeHtml(site.url)}" target="_blank" class="site-url-text">${escapeHtml(site.url)}</a>
                         </div>
                         <a href="${escapeHtml(site.html_url)}" target="_blank" class="table-icon-btn" title="GitHub 이슈에서 보기/관리" style="margin-left: 10px; background-color: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-secondary); width: 32px; height: 32px; border-radius: 8px;">
