@@ -279,7 +279,7 @@ function renderGrid() {
     projectsListBody.innerHTML = '';
     
     if (filteredProjects.length === 0) {
-        showEmptyState("검색 조건에 맞는 지원사업 공고가 없습니다.");
+        showEmptyState("검색 조건에 맞는 보도자료 공고가 없습니다.");
         showingCountText.textContent = "조건에 부합하는 수집 정보가 없습니다.";
         return;
     }
