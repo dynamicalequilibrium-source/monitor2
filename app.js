@@ -490,23 +490,20 @@ function initAddSiteFeature() {
             const desc = descInput ? descInput.value.trim() : '';
             
             if (name && url && requester) {
-                // Construct GitHub Issue URL
-                const title = encodeURIComponent(`[사이트 수집 요청] ${name} (요청자: ${requester})`);
-                const body = encodeURIComponent(
-                    `## 📌 사이트 수집 요청 정보\n\n` +
-                    `- **요청자**: ${requester}\n` +
-                    `- **사이트명**: ${name}\n` +
-                    `- **URL**: ${url}\n` +
-                    `- **추가정보**: ${desc || '없음'}\n` +
-                    `- **요청일**: ${new Date().toLocaleDateString('ko-KR')}\n\n` +
-                    `---\n*이 요청은 모니터링 대시보드를 통해 생성되었습니다. 관리자는 해당 사이트의 수집기(Way A/B)를 구현하고 이슈를 닫아주세요.*`
-                );
-                const labels = encodeURIComponent('site-request');
+                // Save to local requests
+                const localRequestsStr = localStorage.getItem('dashboard_local_requests') || '[]';
+                const localRequests = JSON.parse(localRequestsStr);
                 
-                const issueUrl = `https://github.com/${GITHUB_REPO}/issues/new?title=${title}&body=${body}&labels=${labels}`;
-                
-                // Open in a new tab
-                window.open(issueUrl, '_blank');
+                const newReq = {
+                    id: `req_${Date.now()}`,
+                    name: name,
+                    url: url,
+                    requester: requester,
+                    desc: desc || '없음',
+                    date: new Date().toLocaleDateString('ko-KR')
+                };
+                localRequests.push(newReq);
+                localStorage.setItem('dashboard_local_requests', JSON.stringify(localRequests));
                 
                 // Clear form inputs
                 if (requesterInput) requesterInput.value = '';
@@ -514,10 +511,10 @@ function initAddSiteFeature() {
                 urlInput.value = '';
                 if (descInput) descInput.value = '';
                 
-                // Inform user and close modal
-                alert('깃허브 이슈(GitHub Issue) 작성 창이 열렸습니다.\n화면에서 [Submit new issue] 버튼을 누르면 등록이 최종 완료됩니다.');
+                alert('성공적으로 수집 요청이 등록되었습니다.');
                 
-                addSiteModal.style.display = 'none';
+                // Refresh list
+                renderRequestedSites();
             }
         });
     }
@@ -553,7 +550,7 @@ function initAddSiteFeature() {
         });
     }
     
-    // Fetch and Render requested sites from GitHub Issues API
+    // Fetch and Render requested sites from GitHub Issues API & LocalStorage
     function renderRequestedSites() {
         if (!requestedSitesList) return;
         
@@ -563,6 +560,19 @@ function initAddSiteFeature() {
         const tokenStatusInfo = document.getElementById('token-status-info');
         if (tokenStatusInfo) tokenStatusInfo.style.display = 'none';
         if (requestedSitesActions) requestedSitesActions.style.display = 'none';
+        
+        // Load local requests
+        const localRequestsStr = localStorage.getItem('dashboard_local_requests') || '[]';
+        const localRequests = JSON.parse(localRequestsStr).map(item => ({
+            id: item.id,
+            name: item.name,
+            url: item.url,
+            requester: item.requester,
+            html_url: '#',
+            number: '로컬',
+            source: 'local',
+            date: item.date
+        }));
         
         const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=site-request&per_page=100`;
         
@@ -580,8 +590,6 @@ function initAddSiteFeature() {
                 return res.json();
             })
             .then(data => {
-                requestedSitesList.innerHTML = '';
-                
                 // Show token status if token is set
                 if (token && tokenStatusInfo) {
                     tokenStatusInfo.style.display = 'block';
@@ -597,27 +605,23 @@ function initAddSiteFeature() {
                 }
                 
                 // Filter and map issues
-                const requests = data.map(issue => {
-                    // Try to parse URL from the issue body
+                const githubRequests = data.map(issue => {
                     let url = '';
                     const body = issue.body || '';
                     const urlMatch = body.match(/- \*\*URL\*\*:\s*([^\n]+)/i) || body.match(/URL:\s*([^\n]+)/i);
                     if (urlMatch) {
                         url = urlMatch[1].trim();
                     } else {
-                        // Fallback: search for any http link in the body
                         const httpMatch = body.match(/https?:\/\/[^\s]+/);
                         url = httpMatch ? httpMatch[0] : issue.html_url;
                     }
                     
-                    // Parse requester
                     let requester = '';
                     const reqMatch = body.match(/- \*\*요청자\*\*:\s*([^\n]+)/i);
                     if (reqMatch) {
                         requester = reqMatch[1].trim();
                     }
                     
-                    // Clean up title
                     let name = issue.title.replace(/\[사이트\s*수집\s*요청\]/g, '').trim();
                     name = name.replace(/\(요청자:\s*[^\)]+\)/i, '').trim();
                     
@@ -627,103 +631,120 @@ function initAddSiteFeature() {
                         url: url,
                         requester: requester,
                         html_url: issue.html_url,
-                        number: issue.number,
-                        author: issue.user ? issue.user.login : 'unknown',
+                        number: `#${issue.number}`,
+                        source: 'github',
                         date: new Date(issue.created_at).toLocaleDateString('ko-KR')
                     };
                 });
                 
-                requestedSitesCount.textContent = requests.length;
-                
-                if (requests.length === 0) {
-                    requestedSitesList.innerHTML = `<li style="color: var(--text-muted); font-size: 13px; padding: 16px 0; text-align: center;">등록된 요청 사이트가 없습니다.</li>`;
-                    if (requestedSitesActions) requestedSitesActions.style.display = 'none';
-                    return;
-                }
-                
-                if (requestedSitesActions) {
-                    requestedSitesActions.style.display = 'flex';
-                }
-                
-                requests.forEach(site => {
-                    const li = document.createElement('li');
-                    li.className = 'requested-site-item';
-                    li.innerHTML = `
-                        <div class="site-info">
-                            <span class="site-name-text">
-                                ${escapeHtml(site.name)}
-                                ${site.requester ? `<span style="font-size: 10px; padding: 1px 6px; border-radius: 4px; background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-secondary); margin-left: 6px; font-weight: normal; vertical-align: middle;">${escapeHtml(site.requester)}</span>` : ''}
-                                <span style="font-size:11px; font-weight:normal; color:var(--text-muted); display:inline-block; margin-left:4px;">#${site.number}</span>
-                            </span>
-                            <a href="${escapeHtml(site.url)}" target="_blank" class="site-url-text">${escapeHtml(site.url)}</a>
-                        </div>
-                        <a href="${escapeHtml(site.html_url)}" target="_blank" class="table-icon-btn" title="GitHub 이슈에서 보기/관리" style="margin-left: 10px; background-color: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-secondary); width: 32px; height: 32px; border-radius: 8px;">
-                            <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
-                        </a>
-                    `;
-                    requestedSitesList.appendChild(li);
-                });
-                
-                lucide.createIcons();
+                mergeAndRender(localRequests, githubRequests);
             })
             .catch(err => {
-                console.error('Failed to fetch requested sites:', err);
+                console.warn('Failed to fetch from GitHub issues:', err);
+                
+                // Fetch failed or repo not found / private
                 let errorHtml = `
-                    <li style="color: #ef4444; font-size: 13px; padding: 16px 0; text-align: center;">
-                        데이터를 불러오지 못했습니다.<br>오류: ${err.message}
-                    </li>
+                    <div class="token-input-box" style="margin: 10px 0; padding: 12px; background-color: var(--bg-main); border: 1px solid var(--border-color); border-radius: 10px; font-size:12px; color:var(--text-secondary); line-height:1.4;">
+                        ⚠️ 깃허브 원격 요청 목록을 불러오지 못했습니다. 로컬 등록 목록만 표시됩니다.
+                    </div>
                 `;
                 
                 if (err.message.includes('404')) {
-                    errorHtml += `
-                        <div class="token-input-box" style="margin-top: 15px; padding: 15px; background-color: var(--bg-main); border: 1px solid var(--border-color); border-radius: 12px; text-align: left;">
-                            <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px; line-height:1.5;">
-                                🔒 이 저장소는 <strong>비공개(Private)</strong> 상태이거나 권한이 없습니다. 수집 요청 목록을 불러오고 새 사이트를 등록하려면 깃허브 액세스 토큰(PAT)이 필요합니다.
+                    errorHtml = `
+                        <div class="token-input-box" style="margin: 10px 0; padding: 12px; background-color: var(--bg-main); border: 1px solid var(--border-color); border-radius: 10px; text-align: left;">
+                            <p style="font-size:12px; color:var(--text-secondary); margin-bottom:8px; line-height:1.4;">
+                                🔒 비공개 저장소의 공고 목록을 연동하려면 깃허브 토큰(PAT)이 필요합니다.
                             </p>
-                            <div style="display:flex; gap:10px;">
-                                <input type="password" id="github-pat-input" placeholder="ghp_..." style="flex:1; padding:8px 12px; border:1px solid var(--border-color); border-radius:8px; font-size:13px; background-color:var(--bg-surface); color:var(--text-primary); outline:none;">
-                                <button id="btn-save-pat" class="btn-primary btn-sm" style="margin:0; height:auto; padding:8px 16px;">저장</button>
+                            <div style="display:flex; gap:8px;">
+                                <input type="password" id="github-pat-input" placeholder="ghp_..." style="flex:1; padding:6px 10px; border:1px solid var(--border-color); border-radius:6px; font-size:12px; background-color:var(--bg-surface); color:var(--text-primary); outline:none;">
+                                <button id="btn-save-pat" class="btn-primary btn-sm" style="margin:0; height:auto; padding:6px 12px; font-size:11px; border-radius:6px;">저장</button>
                             </div>
-                            <p style="font-size:11px; color:var(--text-muted); margin-top:8px; line-height:1.4;">
-                                * 입력한 토큰은 브라우저(localStorage)에만 안전하게 저장됩니다. (권한: <strong>repo</strong> 또는 <strong>issues (read/write)</strong> 권한 필요)
-                            </p>
-                        </div>
-                    `;
-                } else if (token && (err.message.includes('401') || err.message.includes('403'))) {
-                    errorHtml += `
-                        <div class="token-input-box" style="margin-top: 15px; padding: 15px; background-color: var(--bg-main); border: 1px solid var(--border-color); border-radius: 12px; text-align: center;">
-                            <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px; line-height:1.5;">
-                                🔑 저장된 토큰이 만료되었거나 권한이 없습니다. (Status 401/403)
-                            </p>
-                            <button id="btn-error-clear-token" class="btn-secondary btn-sm" style="margin: 0 auto;">저장된 토큰 삭제하고 재시도</button>
                         </div>
                     `;
                 }
                 
-                requestedSitesList.innerHTML = errorHtml;
-                requestedSitesCount.textContent = '0';
-                
-                // Attach event listener for save token button
-                const btnSavePat = document.getElementById('btn-save-pat');
-                if (btnSavePat) {
-                    btnSavePat.addEventListener('click', () => {
-                        const patInput = document.getElementById('github-pat-input');
-                        if (patInput && patInput.value.trim()) {
-                            localStorage.setItem('monitor_github_token', patInput.value.trim());
-                            renderRequestedSites();
-                        }
-                    });
-                }
-                
-                // Attach event listener for error clear token button
-                const btnErrorClearToken = document.getElementById('btn-error-clear-token');
-                if (btnErrorClearToken) {
-                    btnErrorClearToken.addEventListener('click', () => {
-                        localStorage.removeItem('monitor_github_token');
-                        renderRequestedSites();
-                    });
-                }
+                mergeAndRender(localRequests, [], errorHtml);
             });
+            
+        function mergeAndRender(localReqs, githubReqs, errorHtml = '') {
+            const merged = [...localReqs, ...githubReqs];
+            requestedSitesCount.textContent = merged.length;
+            
+            requestedSitesList.innerHTML = errorHtml;
+            
+            if (merged.length === 0) {
+                if (!errorHtml) {
+                    requestedSitesList.innerHTML = `<li style="color: var(--text-muted); font-size: 13px; padding: 16px 0; text-align: center;">등록된 요청 사이트가 없습니다.</li>`;
+                }
+                if (requestedSitesActions) requestedSitesActions.style.display = 'none';
+                return;
+            }
+            
+            if (requestedSitesActions) {
+                requestedSitesActions.style.display = 'flex';
+            }
+            
+            merged.forEach(site => {
+                const li = document.createElement('li');
+                li.className = 'requested-site-item';
+                
+                let actionBtnHtml = '';
+                if (site.source === 'local') {
+                    actionBtnHtml = `
+                        <button class="btn-secondary btn-sm btn-delete-local-request" data-id="${site.id}" title="요청 삭제" style="margin-left: 10px; background-color: var(--bg-main); border: 1px solid var(--border-color); color: #ef4444; width: 32px; height: 32px; border-radius: 8px; padding:0; display:inline-flex; align-items:center; justify-content:center; cursor:pointer;">
+                            <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                        </button>
+                    `;
+                } else {
+                    actionBtnHtml = `
+                        <a href="${escapeHtml(site.html_url)}" target="_blank" class="table-icon-btn" title="GitHub 이슈에서 보기/관리" style="margin-left: 10px; background-color: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-secondary); width: 32px; height: 32px; border-radius: 8px; display:inline-flex; align-items:center; justify-content:center; text-decoration:none;">
+                            <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                        </a>
+                    `;
+                }
+                
+                li.innerHTML = `
+                    <div class="site-info">
+                        <span class="site-name-text">
+                            ${escapeHtml(site.name)}
+                            ${site.requester ? `<span style="font-size: 10px; padding: 1px 6px; border-radius: 4px; background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-secondary); margin-left: 6px; font-weight: normal; vertical-align: middle;">${escapeHtml(site.requester)}</span>` : ''}
+                            <span style="font-size: 10px; padding: 1px 6px; border-radius: 4px; background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-muted); margin-left: 4px; font-weight: normal; vertical-align: middle;">${escapeHtml(site.number)}</span>
+                        </span>
+                        <a href="${escapeHtml(site.url)}" target="_blank" class="site-url-text">${escapeHtml(site.url)}</a>
+                    </div>
+                    ${actionBtnHtml}
+                `;
+                requestedSitesList.appendChild(li);
+            });
+            
+            // Attach event listener to local delete buttons
+            requestedSitesList.querySelectorAll('.btn-delete-local-request').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-id');
+                    if (confirm('이 수집 요청을 삭제하시겠습니까?')) {
+                        const localRequestsStr = localStorage.getItem('dashboard_local_requests') || '[]';
+                        let localRequests = JSON.parse(localRequestsStr);
+                        localRequests = localRequests.filter(item => item.id !== id);
+                        localStorage.setItem('dashboard_local_requests', JSON.stringify(localRequests));
+                        renderRequestedSites();
+                    }
+                });
+            });
+            
+            // Re-attach save token listener if present
+            const btnSavePat = document.getElementById('btn-save-pat');
+            if (btnSavePat) {
+                btnSavePat.addEventListener('click', () => {
+                    const patInput = document.getElementById('github-pat-input');
+                    if (patInput && patInput.value.trim()) {
+                        localStorage.setItem('monitor_github_token', patInput.value.trim());
+                        renderRequestedSites();
+                    }
+                });
+            }
+            
+            lucide.createIcons();
+        }
     }
 }
 
