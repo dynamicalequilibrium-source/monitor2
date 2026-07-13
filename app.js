@@ -297,7 +297,7 @@ function initAddSiteFeature() {
     const btnCopyConfig = document.getElementById('btn-copy-config');
     const btnClearRequested = document.getElementById('btn-clear-requested');
     
-    let requestedSites = JSON.parse(localStorage.getItem('monitor_requested_sites') || '[]');
+    const GITHUB_REPO = 'dynamicalequilibrium-source/monitor2';
     
     // Open Modal
     if (btnAddSite && addSiteModal) {
@@ -334,35 +334,46 @@ function initAddSiteFeature() {
             const url = urlInput.value.trim();
             
             if (name && url) {
-                requestedSites.push({
-                    id: Date.now(),
-                    name: name,
-                    url: url,
-                    date: new Date().toLocaleDateString('ko-KR')
-                });
+                // Construct GitHub Issue URL
+                const title = encodeURIComponent(`[사이트 수집 요청] ${name}`);
+                const body = encodeURIComponent(
+                    `## 📌 사이트 수집 요청 정보\n\n` +
+                    `- **사이트명**: ${name}\n` +
+                    `- **URL**: ${url}\n` +
+                    `- **요청일**: ${new Date().toLocaleDateString('ko-KR')}\n\n` +
+                    `---\n*이 요청은 모니터링 대시보드를 통해 생성되었습니다. 관리자는 해당 사이트의 수집기(Way A/B)를 구현하고 이슈를 닫아주세요.*`
+                );
+                const labels = encodeURIComponent('site-request');
                 
-                localStorage.setItem('monitor_requested_sites', JSON.stringify(requestedSites));
+                const issueUrl = `https://github.com/${GITHUB_REPO}/issues/new?title=${title}&body=${body}&labels=${labels}`;
                 
+                // Open in a new tab
+                window.open(issueUrl, '_blank');
+                
+                // Clear form inputs
                 nameInput.value = '';
                 urlInput.value = '';
                 
-                renderRequestedSites();
+                // Inform user and close modal
+                alert('깃허브 이슈(GitHub Issue) 작성 창이 열렸습니다.\n화면에서 [Submit new issue] 버튼을 누르면 등록이 최종 완료됩니다.');
                 
-                // Close modal after successful registration
-                setTimeout(() => {
-                    addSiteModal.style.display = 'none';
-                }, 300);
+                addSiteModal.style.display = 'none';
             }
         });
     }
     
-    // Copy for Admin
+    // Copy all requested sites details
     if (btnCopyConfig) {
         btnCopyConfig.addEventListener('click', () => {
-            if (requestedSites.length === 0) return;
+            const items = requestedSitesList.querySelectorAll('.requested-site-item');
+            if (items.length === 0 || items[0].textContent.includes('등록된 요청') || items[0].textContent.includes('로딩 중')) return;
             
-            // Format as a readable JSON or config list
-            const formatted = requestedSites.map(s => `- 사이트명: ${s.name}\n  URL: ${s.url}\n  등록일: ${s.date}`).join('\n\n');
+            let formatted = '## 📌 모니터링 희망 사이트 요청 목록\n\n';
+            items.forEach((item, idx) => {
+                const name = item.querySelector('.site-name-text').firstChild.textContent.trim();
+                const url = item.querySelector('.site-url-text').getAttribute('href');
+                formatted += `${idx + 1}. **${name}**: ${url}\n`;
+            });
             
             navigator.clipboard.writeText(formatted).then(() => {
                 const originalText = btnCopyConfig.querySelector('span').textContent;
@@ -382,59 +393,88 @@ function initAddSiteFeature() {
         });
     }
     
-    // Clear all
-    if (btnClearRequested) {
-        btnClearRequested.addEventListener('click', () => {
-            if (confirm('등록된 요청 목록을 모두 삭제하시겠습니까?')) {
-                requestedSites = [];
-                localStorage.setItem('monitor_requested_sites', JSON.stringify(requestedSites));
-                renderRequestedSites();
-            }
-        });
-    }
-    
-    // Render list
+    // Fetch and Render requested sites from GitHub Issues API
     function renderRequestedSites() {
         if (!requestedSitesList) return;
         
-        requestedSitesList.innerHTML = '';
-        requestedSitesCount.textContent = requestedSites.length;
+        requestedSitesList.innerHTML = `<li style="color: var(--text-muted); font-size: 13px; padding: 16px 0; text-align: center;"><div class="spinner" style="width:20px; height:20px; margin: 0 auto 8px auto;"></div>로딩 중...</li>`;
+        requestedSitesCount.textContent = '...';
         
-        if (requestedSites.length === 0) {
-            requestedSitesList.innerHTML = `<li style="color: var(--text-muted); font-size: 13px; padding: 16px 0; text-align: center;">등록된 요청 사이트가 없습니다.</li>`;
-            if (requestedSitesActions) requestedSitesActions.style.display = 'none';
-            return;
-        }
+        if (requestedSitesActions) requestedSitesActions.style.display = 'none';
         
-        if (requestedSitesActions) requestedSitesActions.style.display = 'flex';
+        const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=site-request&per_page=100`;
         
-        requestedSites.forEach(site => {
-            const li = document.createElement('li');
-            li.className = 'requested-site-item';
-            li.innerHTML = `
-                <div class="site-info">
-                    <span class="site-name-text">${escapeHtml(site.name)}</span>
-                    <a href="${escapeHtml(site.url)}" target="_blank" class="site-url-text">${escapeHtml(site.url)}</a>
-                </div>
-                <button class="btn-delete-site" data-id="${site.id}" title="삭제">
-                    <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
-                </button>
-            `;
-            requestedSitesList.appendChild(li);
-        });
-        
-        // Add delete listeners
-        const deleteButtons = requestedSitesList.querySelectorAll('.btn-delete-site');
-        deleteButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const id = parseInt(btn.getAttribute('data-id'));
-                requestedSites = requestedSites.filter(s => s.id !== id);
-                localStorage.setItem('monitor_requested_sites', JSON.stringify(requestedSites));
-                renderRequestedSites();
+        fetch(apiUrl)
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`API error (Status: ${res.status})`);
+                }
+                return res.json();
+            })
+            .then(data => {
+                requestedSitesList.innerHTML = '';
+                
+                // Filter and map issues
+                const requests = data.map(issue => {
+                    // Try to parse URL from the issue body
+                    let url = '';
+                    const body = issue.body || '';
+                    const urlMatch = body.match(/- \*\*URL\*\*:\s*([^\n]+)/i) || body.match(/URL:\s*([^\n]+)/i);
+                    if (urlMatch) {
+                        url = urlMatch[1].trim();
+                    } else {
+                        // Fallback: search for any http link in the body
+                        const httpMatch = body.match(/https?:\/\/[^\s]+/);
+                        url = httpMatch ? httpMatch[0] : issue.html_url;
+                    }
+                    
+                    // Clean up title
+                    let name = issue.title.replace(/\[사이트\s*수집\s*요청\]/g, '').trim();
+                    
+                    return {
+                        id: issue.id,
+                        name: name || '이름 없음',
+                        url: url,
+                        html_url: issue.html_url,
+                        number: issue.number,
+                        author: issue.user ? issue.user.login : 'unknown',
+                        date: new Date(issue.created_at).toLocaleDateString('ko-KR')
+                    };
+                });
+                
+                requestedSitesCount.textContent = requests.length;
+                
+                if (requests.length === 0) {
+                    requestedSitesList.innerHTML = `<li style="color: var(--text-muted); font-size: 13px; padding: 16px 0; text-align: center;">등록된 요청 사이트가 없습니다.</li>`;
+                    if (requestedSitesActions) requestedSitesActions.style.display = 'none';
+                    return;
+                }
+                
+                if (requestedSitesActions) {
+                    requestedSitesActions.style.display = 'flex';
+                }
+                
+                requests.forEach(site => {
+                    const li = document.createElement('li');
+                    li.className = 'requested-site-item';
+                    li.innerHTML = `
+                        <div class="site-info">
+                            <span class="site-name-text">${escapeHtml(site.name)} <span style="font-size:11px; font-weight:normal; color:var(--text-muted); display:inline-block; margin-left:4px;">#${site.number} (${site.author})</span></span>
+                            <a href="${escapeHtml(site.url)}" target="_blank" class="site-url-text">${escapeHtml(site.url)}</a>
+                        </div>
+                        <a href="${escapeHtml(site.html_url)}" target="_blank" class="table-icon-btn" title="GitHub 이슈에서 보기/관리" style="margin-left: 10px; background-color: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-secondary); width: 32px; height: 32px; border-radius: 8px;">
+                            <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                        </a>
+                    `;
+                    requestedSitesList.appendChild(li);
+                });
+                
+                lucide.createIcons();
+            })
+            .catch(err => {
+                console.error('Failed to fetch requested sites:', err);
+                requestedSitesList.innerHTML = `<li style="color: #ef4444; font-size: 13px; padding: 16px 0; text-align: center;">데이터를 불러오지 못했습니다.<br>오류: ${err.message}</li>`;
+                requestedSitesCount.textContent = '0';
             });
-        });
-        
-        // Initialize lucide icons for dynamic items
-        lucide.createIcons();
     }
 }
