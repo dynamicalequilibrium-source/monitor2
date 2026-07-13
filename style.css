@@ -434,10 +434,11 @@ body {
     display: inline-block;
     font-size: 11px;
     font-weight: 600;
-    padding: 3px 10px;
-    border-radius: 20px;
-    color: #ffffff;
-    background-color: var(--source-color, var(--primary-color));
+    padding: 3px 9px;
+    border-radius: 8px;
+    color: var(--source-color, var(--primary-color));
+    background-color: var(--source-bg-color, rgba(20, 184, 166, 0.15));
+    border: 1px solid var(--source-border-color, rgba(20, 184, 166, 0.3));
     letter-spacing: 0.3px;
     text-align: center;
     white-space: nowrap;

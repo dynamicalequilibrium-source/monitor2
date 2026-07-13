@@ -20,7 +20,11 @@ let sortOrder = 'desc';
 //     "예시기관": { shortName: "예시기관", color: "#14b8a6", glow: "rgba(20, 184, 166, 0.2)" },
 // };
 // =============================================================================
-const sourceConfig = {};
+const sourceConfig = {
+    "행정안전부 고시공고": { shortName: "행안부 고시공고", color: "#0284c7", glow: "rgba(2, 132, 199, 0.1)" },
+    "행정안전부 보도자료": { shortName: "행안부 보도자료", color: "#0d9488", glow: "rgba(13, 148, 136, 0.1)" },
+    "과학기술정보통신부 보도자료": { shortName: "과기정통부 보도자료", color: "#8b5cf6", glow: "rgba(139, 92, 246, 0.1)" }
+};
 
 // DOM Elements
 const searchInput = document.getElementById('search-input');
@@ -263,7 +267,10 @@ function renderGrid() {
         
         const tr = document.createElement('tr');
         tr.className = 'project-row';
+        const tagColor = conf.color.startsWith('#') ? conf.color : "#64748b";
         tr.style.setProperty('--source-color', conf.color);
+        tr.style.setProperty('--source-bg-color', tagColor + "15"); // 8% opacity
+        tr.style.setProperty('--source-border-color', tagColor + "30"); // 18% opacity
         
         tr.innerHTML = `
             <td style="color: var(--text-secondary); font-weight: 500;">${idx + 1}</td>
