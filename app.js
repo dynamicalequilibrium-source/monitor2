@@ -400,11 +400,19 @@ function initAddSiteFeature() {
         requestedSitesList.innerHTML = `<li style="color: var(--text-muted); font-size: 13px; padding: 16px 0; text-align: center;"><div class="spinner" style="width:20px; height:20px; margin: 0 auto 8px auto;"></div>로딩 중...</li>`;
         requestedSitesCount.textContent = '...';
         
+        const tokenStatusInfo = document.getElementById('token-status-info');
+        if (tokenStatusInfo) tokenStatusInfo.style.display = 'none';
         if (requestedSitesActions) requestedSitesActions.style.display = 'none';
         
         const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=site-request&per_page=100`;
         
-        fetch(apiUrl)
+        const headers = {};
+        const token = localStorage.getItem('monitor_github_token');
+        if (token) {
+            headers['Authorization'] = `token ${token}`;
+        }
+        
+        fetch(apiUrl, { headers: headers })
             .then(res => {
                 if (!res.ok) {
                     throw new Error(`API error (Status: ${res.status})`);
@@ -413,6 +421,20 @@ function initAddSiteFeature() {
             })
             .then(data => {
                 requestedSitesList.innerHTML = '';
+                
+                // Show token status if token is set
+                if (token && tokenStatusInfo) {
+                    tokenStatusInfo.style.display = 'block';
+                    const btnDeletePat = document.getElementById('btn-delete-pat');
+                    if (btnDeletePat) {
+                        btnDeletePat.addEventListener('click', () => {
+                            if (confirm('저장된 GitHub Access Token을 삭제하시겠습니까?')) {
+                                localStorage.removeItem('monitor_github_token');
+                                renderRequestedSites();
+                            }
+                        });
+                    }
+                }
                 
                 // Filter and map issues
                 const requests = data.map(issue => {
@@ -473,8 +495,43 @@ function initAddSiteFeature() {
             })
             .catch(err => {
                 console.error('Failed to fetch requested sites:', err);
-                requestedSitesList.innerHTML = `<li style="color: #ef4444; font-size: 13px; padding: 16px 0; text-align: center;">데이터를 불러오지 못했습니다.<br>오류: ${err.message}</li>`;
+                let errorHtml = `
+                    <li style="color: #ef4444; font-size: 13px; padding: 16px 0; text-align: center;">
+                        데이터를 불러오지 못했습니다.<br>오류: ${err.message}
+                    </li>
+                `;
+                
+                if (err.message.includes('404')) {
+                    errorHtml += `
+                        <div class="token-input-box" style="margin-top: 15px; padding: 15px; background-color: var(--bg-main); border: 1px solid var(--border-color); border-radius: 12px; text-align: left;">
+                            <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px; line-height:1.5;">
+                                🔒 이 저장소는 <strong>비공개(Private)</strong> 상태이거나 권한이 없습니다. 수집 요청 목록을 불러오고 새 사이트를 등록하려면 깃허브 액세스 토큰(PAT)이 필요합니다.
+                            </p>
+                            <div style="display:flex; gap:10px;">
+                                <input type="password" id="github-pat-input" placeholder="ghp_..." style="flex:1; padding:8px 12px; border:1px solid var(--border-color); border-radius:8px; font-size:13px; background-color:var(--bg-surface); color:var(--text-primary); outline:none;">
+                                <button id="btn-save-pat" class="btn-primary btn-sm" style="margin:0; height:auto; padding:8px 16px;">저장</button>
+                            </div>
+                            <p style="font-size:11px; color:var(--text-muted); margin-top:8px; line-height:1.4;">
+                                * 입력한 토큰은 브라우저(localStorage)에만 안전하게 저장됩니다. (권한: <strong>repo</strong> 또는 <strong>issues (read/write)</strong> 권한 필요)
+                            </p>
+                        </div>
+                    `;
+                }
+                
+                requestedSitesList.innerHTML = errorHtml;
                 requestedSitesCount.textContent = '0';
+                
+                // Attach event listener for save token button
+                const btnSavePat = document.getElementById('btn-save-pat');
+                if (btnSavePat) {
+                    btnSavePat.addEventListener('click', () => {
+                        const patInput = document.getElementById('github-pat-input');
+                        if (patInput && patInput.value.trim()) {
+                            localStorage.setItem('monitor_github_token', patInput.value.trim());
+                            renderRequestedSites();
+                        }
+                    });
+                }
             });
     }
 }
