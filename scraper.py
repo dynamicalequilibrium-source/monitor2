@@ -102,7 +102,38 @@ def scrape_soup_custom(site_config: dict) -> list:
         #
         # =====================================================================
 
-        if parser_type is None:
+        if parser_type == "mois":
+            # Find all a links with href containing BBSMSTR_000000000010 and nttId
+            for a in soup.find_all('a', href=True):
+                href = a['href']
+                raw_text = a.get_text()
+                
+                if "BBSMSTR_000000000010" in href and "nttId" in href:
+                    # Clean title and extract date
+                    title = clean_text(raw_text)
+                    
+                    # Match date (e.g. 2026.07.13. or 2026-07-13)
+                    post_date = ""
+                    date_match = re.search(r'\d{4}[.-]\d{2}[.-]\d{2}', title)
+                    if date_match:
+                        post_date = date_match.group(0).replace(".", "-")
+                        # Remove date from the title text
+                        title = title.replace(date_match.group(0), "").strip()
+                        # Clean up trailing periods, commas, or parentheses if any
+                        title = re.sub(r'[\s.,\-\(\)]+$', '', title).strip()
+                        
+                    if title:
+                        link = urljoin(url, href)
+                        link = re.sub(r';jsessionid=[^?]+', '', link) # strip jsessionid
+                        items.append({
+                            "source": name,
+                            "title": title,
+                            "link": link,
+                            "post_date": post_date,
+                            "collected_at": get_current_timestamp()
+                        })
+
+        elif parser_type is None:
             print(f"[Scraper Warning] No parser type specified for '{name}'. Skipping.")
         else:
             print(f"[Scraper Warning] Unknown parser type '{parser_type}' for '{name}'. "
@@ -123,21 +154,40 @@ def scrape_soup_custom(site_config: dict) -> list:
 # =============================================================================
 
 FILTER_KEYWORDS = [
-    # Add keywords to filter out from titles
+    # Add keywords to filter out from titles (Exclusion keywords)
     # Example: "마감", "종료", "서울", "경기"
+]
+
+INCLUDE_KEYWORDS = [
+    # Add keywords to strictly require in titles (Inclusion keywords)
+    "ai",
+    "인공지능",
+    "인공 지능"
 ]
 
 def should_filter_project(title: str) -> bool:
     """Returns True if the project title should be filtered out.
     
-    Customize FILTER_KEYWORDS above to enable filtering.
+    If INCLUDE_KEYWORDS is defined, only titles containing at least one inclusion keyword
+    (case-insensitive) are kept. Titles containing any FILTER_KEYWORDS are excluded.
     """
-    if not title or not FILTER_KEYWORDS:
-        return False
+    if not title:
+        return True
+        
     title_lower = title.lower()
-    for keyword in FILTER_KEYWORDS:
-        if keyword in title_lower:
-            return True
+    
+    # 1. Exclusion Check (Filter out if matches any exclusion keyword)
+    if FILTER_KEYWORDS:
+        for keyword in FILTER_KEYWORDS:
+            if keyword in title_lower:
+                return True
+                
+    # 2. Inclusion Check (Filter out if does not match any inclusion keyword)
+    if INCLUDE_KEYWORDS:
+        has_inclusion = any(keyword in title_lower for keyword in INCLUDE_KEYWORDS)
+        if not has_inclusion:
+            return True # Filter out since it doesn't contain the target keywords
+            
     return False
 
 

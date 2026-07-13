@@ -37,7 +37,12 @@ SCHEDULE_TIME = "09:00"
 # =============================================================================
 
 TARGET_SITES = [
-    # Add your target sites here
+    {
+        "name": "행정안전부",
+        "url": "https://www.mois.go.kr/frt/bbs/type002/commonSelectBoardList.do?bbsId=BBSMSTR_000000000010",
+        "type": "soup",
+        "parser": "mois"
+    }
 ]
 
 # =============================================================================
