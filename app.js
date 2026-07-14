@@ -491,31 +491,55 @@ function initAddSiteFeature() {
             const desc = descInput ? descInput.value.trim() : '';
             
             if (name && url && requester) {
-                // Save to local requests
-                const localRequestsStr = localStorage.getItem('dashboard_local_requests') || '[]';
-                const localRequests = JSON.parse(localRequestsStr);
+                const btnSubmit = addSiteForm.querySelector('button[type="submit"]');
+                const originalBtnText = btnSubmit.innerHTML;
+                btnSubmit.disabled = true;
+                btnSubmit.innerHTML = `<div class="spinner" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:6px;"></div>등록 중...`;
                 
-                const newReq = {
-                    id: `req_${Date.now()}`,
-                    name: name,
-                    url: url,
-                    requester: requester,
-                    desc: desc || '없음',
-                    date: new Date().toLocaleDateString('ko-KR')
-                };
-                localRequests.push(newReq);
-                localStorage.setItem('dashboard_local_requests', JSON.stringify(localRequests));
+                const binUrl = `https://extendsclass.com/api/json-storage/bin/dddacfc`;
                 
-                // Clear form inputs
-                if (requesterInput) requesterInput.value = '';
-                nameInput.value = '';
-                urlInput.value = '';
-                if (descInput) descInput.value = '';
-                
-                alert('성공적으로 수집 요청이 등록되었습니다.');
-                
-                // Refresh list
-                renderRequestedSites();
+                // Fetch current list, append, and PUT
+                fetch(binUrl)
+                    .then(res => res.json())
+                    .then(data => {
+                        const list = Array.isArray(data) ? data : [];
+                        const newReq = {
+                            id: `req_${Date.now()}`,
+                            name: name,
+                            url: url,
+                            requester: requester,
+                            desc: desc || '없음',
+                            date: new Date().toLocaleDateString('ko-KR')
+                        };
+                        list.push(newReq);
+                        
+                        return fetch(binUrl, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(list)
+                        });
+                    })
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        
+                        btnSubmit.disabled = false;
+                        btnSubmit.innerHTML = originalBtnText;
+                        
+                        // Clear form inputs
+                        if (requesterInput) requesterInput.value = '';
+                        nameInput.value = '';
+                        urlInput.value = '';
+                        if (descInput) descInput.value = '';
+                        
+                        alert('💾 성공적으로 수집 요청이 등록되어 실시간으로 반영되었습니다!');
+                        renderRequestedSites();
+                    })
+                    .catch(err => {
+                        console.error("Failed to save site request:", err);
+                        btnSubmit.disabled = false;
+                        btnSubmit.innerHTML = originalBtnText;
+                        alert("등록 실패: 인터넷 연결 및 API 서버 상태를 확인해 주세요.");
+                    });
             }
         });
     }
@@ -551,201 +575,95 @@ function initAddSiteFeature() {
         });
     }
     
-    // Fetch and Render requested sites from GitHub Issues API & LocalStorage
+    // Fetch and Render requested sites from ExtendsClass JSON Bin (Collaborative, token-free)
     function renderRequestedSites() {
         if (!requestedSitesList) return;
         
         requestedSitesList.innerHTML = `<li style="color: var(--text-muted); font-size: 13px; padding: 16px 0; text-align: center;"><div class="spinner" style="width:20px; height:20px; margin: 0 auto 8px auto;"></div>로딩 중...</li>`;
         requestedSitesCount.textContent = '...';
         
-        const tokenStatusInfo = document.getElementById('token-status-info');
-        if (tokenStatusInfo) tokenStatusInfo.style.display = 'none';
         if (requestedSitesActions) requestedSitesActions.style.display = 'none';
         
-        // Load local requests
-        const localRequestsStr = localStorage.getItem('dashboard_local_requests') || '[]';
-        const localRequests = JSON.parse(localRequestsStr).map(item => ({
-            id: item.id,
-            name: item.name,
-            url: item.url,
-            requester: item.requester,
-            html_url: '#',
-            number: '로컬',
-            source: 'local',
-            date: item.date
-        }));
+        const binUrl = `https://extendsclass.com/api/json-storage/bin/dddacfc`;
         
-        const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/issues?state=open&labels=site-request&per_page=100`;
-        
-        const headers = {};
-        const token = localStorage.getItem('monitor_github_token');
-        if (token) {
-            headers['Authorization'] = `token ${token}`;
-        }
-        
-        fetch(apiUrl, { headers: headers })
+        fetch(binUrl)
             .then(res => {
-                if (!res.ok) {
-                    throw new Error(`API error (Status: ${res.status})`);
-                }
+                if (!res.ok) throw new Error(`HTTP error (Status: ${res.status})`);
                 return res.json();
             })
             .then(data => {
-                // Show token status if token is set
-                if (token && tokenStatusInfo) {
-                    tokenStatusInfo.style.display = 'block';
-                    const btnDeletePat = document.getElementById('btn-delete-pat');
-                    if (btnDeletePat) {
-                        btnDeletePat.addEventListener('click', () => {
-                            if (confirm('저장된 GitHub Access Token을 삭제하시겠습니까?')) {
-                                localStorage.removeItem('monitor_github_token');
-                                renderRequestedSites();
-                            }
-                        });
-                    }
-                }
+                requestedSitesList.innerHTML = '';
+                const requests = Array.isArray(data) ? data : [];
+                requestedSitesCount.textContent = requests.length;
                 
-                // Filter and map issues
-                const githubRequests = data.map(issue => {
-                    let url = '';
-                    const body = issue.body || '';
-                    const urlMatch = body.match(/- \*\*URL\*\*:\s*([^\n]+)/i) || body.match(/URL:\s*([^\n]+)/i);
-                    if (urlMatch) {
-                        url = urlMatch[1].trim();
-                    } else {
-                        const httpMatch = body.match(/https?:\/\/[^\s]+/);
-                        url = httpMatch ? httpMatch[0] : issue.html_url;
-                    }
-                    
-                    let requester = '';
-                    const reqMatch = body.match(/- \*\*요청자\*\*:\s*([^\n]+)/i);
-                    if (reqMatch) {
-                        requester = reqMatch[1].trim();
-                    }
-                    
-                    let name = issue.title.replace(/\[사이트\s*수집\s*요청\]/g, '').trim();
-                    name = name.replace(/\(요청자:\s*[^\)]+\)/i, '').trim();
-                    
-                    return {
-                        id: issue.id,
-                        name: name || '이름 없음',
-                        url: url,
-                        requester: requester,
-                        html_url: issue.html_url,
-                        number: `#${issue.number}`,
-                        source: 'github',
-                        date: new Date(issue.created_at).toLocaleDateString('ko-KR')
-                    };
-                });
-                
-                mergeAndRender(localRequests, githubRequests);
-            })
-            .catch(err => {
-                console.warn('Failed to fetch from GitHub issues:', err);
-                
-                // Fetch failed or repo not found / private
-                let errorHtml = `
-                    <div class="token-input-box" style="margin: 10px 0; padding: 12px; background-color: var(--bg-main); border: 1px solid var(--border-color); border-radius: 10px; font-size:12px; color:var(--text-secondary); line-height:1.4;">
-                        ⚠️ 깃허브 원격 요청 목록을 불러오지 못했습니다. 로컬 등록 목록만 표시됩니다.
-                    </div>
-                `;
-                
-                if (err.message.includes('404')) {
-                    errorHtml = `
-                        <div class="token-input-box" style="margin: 10px 0; padding: 12px; background-color: var(--bg-main); border: 1px solid var(--border-color); border-radius: 10px; text-align: left;">
-                            <p style="font-size:12px; color:var(--text-secondary); margin-bottom:8px; line-height:1.4;">
-                                🔒 비공개 저장소의 공고 목록을 연동하려면 깃허브 토큰(PAT)이 필요합니다.
-                            </p>
-                            <div style="display:flex; gap:8px;">
-                                <input type="password" id="github-pat-input" placeholder="ghp_..." style="flex:1; padding:6px 10px; border:1px solid var(--border-color); border-radius:6px; font-size:12px; background-color:var(--bg-surface); color:var(--text-primary); outline:none;">
-                                <button id="btn-save-pat" class="btn-primary btn-sm" style="margin:0; height:auto; padding:6px 12px; font-size:11px; border-radius:6px;">저장</button>
-                            </div>
-                        </div>
-                    `;
-                }
-                
-                mergeAndRender(localRequests, [], errorHtml);
-            });
-            
-        function mergeAndRender(localReqs, githubReqs, errorHtml = '') {
-            const merged = [...localReqs, ...githubReqs];
-            requestedSitesCount.textContent = merged.length;
-            
-            requestedSitesList.innerHTML = errorHtml;
-            
-            if (merged.length === 0) {
-                if (!errorHtml) {
+                if (requests.length === 0) {
                     requestedSitesList.innerHTML = `<li style="color: var(--text-muted); font-size: 13px; padding: 16px 0; text-align: center;">등록된 요청 사이트가 없습니다.</li>`;
+                    return;
                 }
-                if (requestedSitesActions) requestedSitesActions.style.display = 'none';
-                return;
-            }
-            
-            if (requestedSitesActions) {
-                requestedSitesActions.style.display = 'flex';
-            }
-            
-            merged.forEach(site => {
-                const li = document.createElement('li');
-                li.className = 'requested-site-item';
                 
-                let actionBtnHtml = '';
-                if (site.source === 'local') {
-                    actionBtnHtml = `
-                        <button class="btn-secondary btn-sm btn-delete-local-request" data-id="${site.id}" title="요청 삭제" style="margin-left: 10px; background-color: var(--bg-main); border: 1px solid var(--border-color); color: #ef4444; width: 32px; height: 32px; border-radius: 8px; padding:0; display:inline-flex; align-items:center; justify-content:center; cursor:pointer;">
+                if (requestedSitesActions) {
+                    requestedSitesActions.style.display = 'flex';
+                }
+                
+                requests.forEach(site => {
+                    const li = document.createElement('li');
+                    li.className = 'requested-site-item';
+                    li.innerHTML = `
+                        <div class="site-info">
+                            <span class="site-name-text">
+                                ${escapeHtml(site.name)}
+                                ${site.requester ? `<span style="font-size: 10px; padding: 1px 6px; border-radius: 4px; background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-secondary); margin-left: 6px; font-weight: normal; vertical-align: middle;">${escapeHtml(site.requester)}</span>` : ''}
+                            </span>
+                            <a href="${escapeHtml(site.url)}" target="_blank" class="site-url-text">${escapeHtml(site.url)}</a>
+                        </div>
+                        <button class="btn-secondary btn-sm btn-delete-site-request" data-id="${site.id}" title="요청 삭제" style="margin-left: 10px; background-color: var(--bg-main); border: 1px solid var(--border-color); color: #ef4444; width: 32px; height: 32px; border-radius: 8px; padding:0; display:inline-flex; align-items:center; justify-content:center; cursor:pointer;">
                             <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                         </button>
                     `;
-                } else {
-                    actionBtnHtml = `
-                        <a href="${escapeHtml(site.html_url)}" target="_blank" class="table-icon-btn" title="GitHub 이슈에서 보기/관리" style="margin-left: 10px; background-color: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-secondary); width: 32px; height: 32px; border-radius: 8px; display:inline-flex; align-items:center; justify-content:center; text-decoration:none;">
-                            <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
-                        </a>
-                    `;
-                }
+                    requestedSitesList.appendChild(li);
+                });
                 
-                li.innerHTML = `
-                    <div class="site-info">
-                        <span class="site-name-text">
-                            ${escapeHtml(site.name)}
-                            ${site.requester ? `<span style="font-size: 10px; padding: 1px 6px; border-radius: 4px; background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-secondary); margin-left: 6px; font-weight: normal; vertical-align: middle;">${escapeHtml(site.requester)}</span>` : ''}
-                            <span style="font-size: 10px; padding: 1px 6px; border-radius: 4px; background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-muted); margin-left: 4px; font-weight: normal; vertical-align: middle;">${escapeHtml(site.number)}</span>
-                        </span>
-                        <a href="${escapeHtml(site.url)}" target="_blank" class="site-url-text">${escapeHtml(site.url)}</a>
-                    </div>
-                    ${actionBtnHtml}
-                `;
-                requestedSitesList.appendChild(li);
-            });
-            
-            // Attach event listener to local delete buttons
-            requestedSitesList.querySelectorAll('.btn-delete-local-request').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const id = btn.getAttribute('data-id');
-                    if (confirm('이 수집 요청을 삭제하시겠습니까?')) {
-                        const localRequestsStr = localStorage.getItem('dashboard_local_requests') || '[]';
-                        let localRequests = JSON.parse(localRequestsStr);
-                        localRequests = localRequests.filter(item => item.id !== id);
-                        localStorage.setItem('dashboard_local_requests', JSON.stringify(localRequests));
-                        renderRequestedSites();
-                    }
+                // Attach delete event listeners
+                requestedSitesList.querySelectorAll('.btn-delete-site-request').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = btn.getAttribute('data-id');
+                        if (confirm('이 수집 요청을 정말로 삭제하시겠습니까?')) {
+                            deleteRequestedSite(id);
+                        }
+                    });
                 });
+                
+                lucide.createIcons();
+            })
+            .catch(err => {
+                console.error('Failed to fetch requested sites from shared bin:', err);
+                requestedSitesList.innerHTML = `<li style="color: var(--text-muted); font-size: 13px; padding: 16px 0; text-align: center;">요청 목록을 불러오지 못했습니다.</li>`;
             });
-            
-            // Re-attach save token listener if present
-            const btnSavePat = document.getElementById('btn-save-pat');
-            if (btnSavePat) {
-                btnSavePat.addEventListener('click', () => {
-                    const patInput = document.getElementById('github-pat-input');
-                    if (patInput && patInput.value.trim()) {
-                        localStorage.setItem('monitor_github_token', patInput.value.trim());
-                        renderRequestedSites();
-                    }
+    }
+
+    function deleteRequestedSite(id) {
+        const binUrl = `https://extendsclass.com/api/json-storage/bin/dddacfc`;
+        
+        fetch(binUrl)
+            .then(res => res.json())
+            .then(data => {
+                const list = Array.isArray(data) ? data : [];
+                const updatedList = list.filter(item => item.id !== id);
+                
+                return fetch(binUrl, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedList)
                 });
-            }
-            
-            lucide.createIcons();
-        }
+            })
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                renderRequestedSites();
+            })
+            .catch(err => {
+                console.error("Failed to delete request from shared bin:", err);
+                alert("삭제 처리에 실패했습니다. 인터넷 연결을 확인해 주세요.");
+            });
     }
 }
 
@@ -765,36 +683,20 @@ function initUserFeature() {
     const btnUserCancel = document.getElementById('btn-user-cancel');
     const userList = document.getElementById('user-list');
     
-    // User Settings Token Elements
-    const userTokenStatusInfo = document.getElementById('user-token-status-info');
-    const userTokenInputBox = document.getElementById('user-token-input-box');
-    const userGithubPatInput = document.getElementById('user-github-pat-input');
-    const btnSaveUserPat = document.getElementById('btn-save-user-pat');
-    const btnDeleteUserPat = document.getElementById('btn-delete-user-pat');
-    
-    // Load profiles from GitHub API (realtime shared profiles)
+    // Load profiles from shared ExtendsClass JSON bin (collaborative, realtime)
     loadUserProfiles();
     
-    // Fetch live users.json from GitHub API to ensure real-time shared data
+    // Fetch live users.json from shared JSON bin
     function loadUserProfiles() {
-        const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/data/users.json`;
-        const headers = {};
-        const token = localStorage.getItem('monitor_github_token');
-        if (token) {
-            headers['Authorization'] = `token ${token}`;
-        }
+        const binUrl = `https://extendsclass.com/api/json-storage/bin/ccffaad`;
         
-        fetch(apiUrl, { headers: headers })
+        fetch(binUrl)
             .then(res => {
-                if (!res.ok) throw new Error(`Failed to fetch users.json metadata: ${res.status}`);
+                if (!res.ok) throw new Error(`Failed to fetch users: ${res.status}`);
                 return res.json();
             })
             .then(data => {
-                usersJsonSha = data.sha; // Save SHA for future commits
-                
-                // Decode base64 UTF-8
-                const decoded = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
-                userProfiles = JSON.parse(decoded);
+                userProfiles = Array.isArray(data) ? data : [];
                 localStorage.setItem('dashboard_user_profiles', JSON.stringify(userProfiles));
                 renderUserChips();
                 if (userManageModal && userManageModal.style.display === 'flex') {
@@ -802,7 +704,7 @@ function initUserFeature() {
                 }
             })
             .catch(err => {
-                console.warn("Failed to fetch live users.json from GitHub API, falling back to local cache:", err);
+                console.warn("Failed to fetch live users from shared bin, falling back to local cache:", err);
                 const localProfiles = localStorage.getItem('dashboard_user_profiles');
                 if (localProfiles) {
                     userProfiles = JSON.parse(localProfiles);
@@ -825,41 +727,6 @@ function initUserFeature() {
             });
     }
     
-    // Token box UI state management
-    function updateUserTokenUI() {
-        const token = localStorage.getItem('monitor_github_token');
-        if (token) {
-            if (userTokenStatusInfo) userTokenStatusInfo.style.display = 'block';
-            if (userTokenInputBox) userTokenInputBox.style.display = 'none';
-        } else {
-            if (userTokenStatusInfo) userTokenStatusInfo.style.display = 'none';
-            if (userTokenInputBox) userTokenInputBox.style.display = 'block';
-        }
-    }
-    
-    if (btnSaveUserPat && userGithubPatInput) {
-        btnSaveUserPat.addEventListener('click', () => {
-            const token = userGithubPatInput.value.trim();
-            if (token) {
-                localStorage.setItem('monitor_github_token', token);
-                userGithubPatInput.value = '';
-                updateUserTokenUI();
-                loadUserProfiles(); // Reload from github using the token
-                alert('깃허브 토큰이 성공적으로 저장되었습니다. 이제 공동 사용자 동기화가 활성화됩니다.');
-            }
-        });
-    }
-    
-    if (btnDeleteUserPat) {
-        btnDeleteUserPat.addEventListener('click', () => {
-            if (confirm('저장된 깃허브 토큰을 삭제하시겠습니까? 삭제 시 공동 사용자 수정 사항을 서버에 저장할 수 없게 됩니다.')) {
-                localStorage.removeItem('monitor_github_token');
-                updateUserTokenUI();
-                alert('깃허브 토큰이 삭제되었습니다.');
-            }
-        });
-    }
-    
     // Open management modal
     if (btnManageUsers && userManageModal) {
         btnManageUsers.addEventListener('click', () => {
@@ -867,7 +734,6 @@ function initUserFeature() {
             populateFormSources();
             renderUserList();
             resetUserForm();
-            updateUserTokenUI();
         });
     }
     
@@ -937,71 +803,25 @@ function initUserFeature() {
         });
     }
     
-    // Commits userProfiles array to data/users.json in GitHub repo
+    // Commits userProfiles array to shared ExtendsClass JSON bin
     function saveUserProfiles() {
         // Save to local cache first
         localStorage.setItem('dashboard_user_profiles', JSON.stringify(userProfiles));
-        
-        const token = localStorage.getItem('monitor_github_token');
-        if (!token) {
-            alert('🔒 깃허브 토큰(GitHub PAT)이 등록되어 있지 않아 내 브라우저에만 임시 저장되었습니다.\n모든 사용자와 실시간 공유하려면 [사용자 설정] 모달 하단에서 깃허브 토큰을 등록해 주세요.');
-            renderUserChips();
-            renderUserList();
-            resetUserForm();
-            applyFilters();
-            return;
-        }
         
         const btnSubmit = document.getElementById('btn-user-submit');
         const originalBtnText = btnSubmit.innerHTML;
         btnSubmit.disabled = true;
         btnSubmit.innerHTML = `<div class="spinner" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:6px;"></div>저장 중...`;
         
-        const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/data/users.json`;
+        const binUrl = `https://extendsclass.com/api/json-storage/bin/ccffaad`;
         
-        // Fetch current sha to prevent commit conflict
-        fetch(apiUrl, {
-            headers: { 'Authorization': `token ${token}` }
+        fetch(binUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userProfiles)
         })
         .then(res => {
-            if (res.status === 404) return { sha: '' };
-            if (!res.ok) throw new Error(`GitHub API error (Status: ${res.status})`);
-            return res.json();
-        })
-        .then(metadata => {
-            const sha = metadata.sha;
-            
-            // Encode Base64 UTF-8 string
-            const jsonString = JSON.stringify(userProfiles, null, 2);
-            const utf8Bytes = new TextEncoder().encode(jsonString);
-            let binary = '';
-            const len = utf8Bytes.byteLength;
-            for (let i = 0; i < len; i++) {
-                binary += String.fromCharCode(utf8Bytes[i]);
-            }
-            const base64Content = btoa(binary);
-            
-            const commitData = {
-                message: "Data: Update users list via dashboard settings panel",
-                content: base64Content,
-                sha: sha
-            };
-            
-            return fetch(apiUrl, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `token ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(commitData)
-            });
-        })
-        .then(res => {
-            if (!res.ok) throw new Error(`Commit failed (Status: ${res.status})`);
-            return res.json();
-        })
-        .then(commitResult => {
-            usersJsonSha = commitResult.content.sha;
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             
             btnSubmit.disabled = false;
             btnSubmit.innerHTML = originalBtnText;
@@ -1011,14 +831,14 @@ function initUserFeature() {
             resetUserForm();
             applyFilters();
             
-            alert('💾 설정 내용이 성공적으로 깃허브(GitHub)에 저장되어 모든 사용자에게 실시간 반영되었습니다!');
+            alert('💾 설정 내용이 성공적으로 저장되어 모든 사용자에게 실시간 반영되었습니다!');
         })
         .catch(err => {
-            console.error("Failed to sync user profiles to GitHub:", err);
+            console.error("Failed to sync user profiles to shared bin:", err);
             btnSubmit.disabled = false;
             btnSubmit.innerHTML = originalBtnText;
             
-            alert(`⚠️ 서버(GitHub) 저장 실패: ${err.message}\n\n입력한 토큰의 권한(repo 또는 write)이 올바른지 확인해 주세요. 로컬에는 임시 저장되었습니다.`);
+            alert(`⚠️ 저장 실패: ${err.message}\n인터넷 연결 상태를 확인해 주세요.`);
             
             renderUserChips();
             renderUserList();
