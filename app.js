@@ -496,7 +496,7 @@ function initAddSiteFeature() {
                 btnSubmit.disabled = true;
                 btnSubmit.innerHTML = `<div class="spinner" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:6px;"></div>등록 중...`;
                 
-                const binUrl = `https://extendsclass.com/api/json-storage/bin/dddacfc`;
+                const binUrl = `/api/shared-store?type=requests`;
                 
                 // Fetch current list, append, and PUT
                 fetch(binUrl)
@@ -584,7 +584,7 @@ function initAddSiteFeature() {
         
         if (requestedSitesActions) requestedSitesActions.style.display = 'none';
         
-        const binUrl = `https://extendsclass.com/api/json-storage/bin/dddacfc`;
+        const binUrl = `/api/shared-store?type=requests`;
         
         fetch(binUrl)
             .then(res => {
@@ -642,7 +642,7 @@ function initAddSiteFeature() {
     }
 
     function deleteRequestedSite(id) {
-        const binUrl = `https://extendsclass.com/api/json-storage/bin/dddacfc`;
+        const binUrl = `/api/shared-store?type=requests`;
         
         fetch(binUrl)
             .then(res => res.json())
@@ -688,7 +688,7 @@ function initUserFeature() {
     
     // Fetch live users.json from shared JSON bin
     function loadUserProfiles() {
-        const binUrl = `https://extendsclass.com/api/json-storage/bin/ccffaad`;
+        const binUrl = `/api/shared-store?type=users`;
         
         fetch(binUrl)
             .then(res => {
@@ -813,7 +813,7 @@ function initUserFeature() {
         btnSubmit.disabled = true;
         btnSubmit.innerHTML = `<div class="spinner" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:6px;"></div>저장 중...`;
         
-        const binUrl = `https://extendsclass.com/api/json-storage/bin/ccffaad`;
+        const binUrl = `/api/shared-store?type=users`;
         
         fetch(binUrl, {
             method: 'PUT',
