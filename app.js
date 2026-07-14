@@ -12,6 +12,7 @@ let sortOrder = 'desc';
 // User Profile States
 let userProfiles = [];
 let activeUserId = 'ALL';
+let usersJsonSha = '';
 
 // =============================================================================
 // Source name mappings and accent colors
@@ -764,25 +765,99 @@ function initUserFeature() {
     const btnUserCancel = document.getElementById('btn-user-cancel');
     const userList = document.getElementById('user-list');
     
-    // Load preseeded profiles and local custom profiles
-    const localProfiles = localStorage.getItem('dashboard_user_profiles');
-    if (localProfiles) {
-        userProfiles = JSON.parse(localProfiles);
-        renderUserChips();
-    } else {
-        // Fetch users.json
-        fetch(`/data/users.json?t=${new Date().getTime()}`)
-            .then(res => res.json())
+    // User Settings Token Elements
+    const userTokenStatusInfo = document.getElementById('user-token-status-info');
+    const userTokenInputBox = document.getElementById('user-token-input-box');
+    const userGithubPatInput = document.getElementById('user-github-pat-input');
+    const btnSaveUserPat = document.getElementById('btn-save-user-pat');
+    const btnDeleteUserPat = document.getElementById('btn-delete-user-pat');
+    
+    // Load profiles from GitHub API (realtime shared profiles)
+    loadUserProfiles();
+    
+    // Fetch live users.json from GitHub API to ensure real-time shared data
+    function loadUserProfiles() {
+        const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/data/users.json`;
+        const headers = {};
+        const token = localStorage.getItem('monitor_github_token');
+        if (token) {
+            headers['Authorization'] = `token ${token}`;
+        }
+        
+        fetch(apiUrl, { headers: headers })
+            .then(res => {
+                if (!res.ok) throw new Error(`Failed to fetch users.json metadata: ${res.status}`);
+                return res.json();
+            })
             .then(data => {
-                userProfiles = data;
+                usersJsonSha = data.sha; // Save SHA for future commits
+                
+                // Decode base64 UTF-8
+                const decoded = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
+                userProfiles = JSON.parse(decoded);
                 localStorage.setItem('dashboard_user_profiles', JSON.stringify(userProfiles));
                 renderUserChips();
+                if (userManageModal && userManageModal.style.display === 'flex') {
+                    renderUserList();
+                }
             })
             .catch(err => {
-                console.error("Failed to load users.json:", err);
-                userProfiles = [];
-                renderUserChips();
+                console.warn("Failed to fetch live users.json from GitHub API, falling back to local cache:", err);
+                const localProfiles = localStorage.getItem('dashboard_user_profiles');
+                if (localProfiles) {
+                    userProfiles = JSON.parse(localProfiles);
+                    renderUserChips();
+                } else {
+                    // Fetch Netlify local json file as ultimate fallback
+                    fetch(`/data/users.json?t=${new Date().getTime()}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            userProfiles = data;
+                            localStorage.setItem('dashboard_user_profiles', JSON.stringify(userProfiles));
+                            renderUserChips();
+                        })
+                        .catch(fallbackErr => {
+                            console.error("All user profile load strategies failed:", fallbackErr);
+                            userProfiles = [];
+                            renderUserChips();
+                        });
+                }
             });
+    }
+    
+    // Token box UI state management
+    function updateUserTokenUI() {
+        const token = localStorage.getItem('monitor_github_token');
+        if (token) {
+            if (userTokenStatusInfo) userTokenStatusInfo.style.display = 'block';
+            if (userTokenInputBox) userTokenInputBox.style.display = 'none';
+        } else {
+            if (userTokenStatusInfo) userTokenStatusInfo.style.display = 'none';
+            if (userTokenInputBox) userTokenInputBox.style.display = 'block';
+        }
+    }
+    
+    if (btnSaveUserPat && userGithubPatInput) {
+        btnSaveUserPat.addEventListener('click', () => {
+            const token = userGithubPatInput.value.trim();
+            if (token) {
+                localStorage.setItem('monitor_github_token', token);
+                userGithubPatInput.value = '';
+                updateUserTokenUI();
+                loadUserProfiles(); // Reload from github using the token
+                alert('깃허브 토큰이 성공적으로 저장되었습니다. 이제 공동 사용자 동기화가 활성화됩니다.');
+            }
+        });
+    }
+    
+    if (btnDeleteUserPat) {
+        btnDeleteUserPat.addEventListener('click', () => {
+            if (confirm('저장된 깃허브 토큰을 삭제하시겠습니까? 삭제 시 공동 사용자 수정 사항을 서버에 저장할 수 없게 됩니다.')) {
+                localStorage.removeItem('monitor_github_token');
+                updateUserTokenUI();
+                alert('깃허브 토큰이 삭제되었습니다.');
+            }
+        });
     }
     
     // Open management modal
@@ -792,6 +867,7 @@ function initUserFeature() {
             populateFormSources();
             renderUserList();
             resetUserForm();
+            updateUserTokenUI();
         });
     }
     
@@ -856,14 +932,98 @@ function initUserFeature() {
                 });
             }
             
-            // Save & re-render
-            localStorage.setItem('dashboard_user_profiles', JSON.stringify(userProfiles));
+            // Save & Sync
+            saveUserProfiles();
+        });
+    }
+    
+    // Commits userProfiles array to data/users.json in GitHub repo
+    function saveUserProfiles() {
+        // Save to local cache first
+        localStorage.setItem('dashboard_user_profiles', JSON.stringify(userProfiles));
+        
+        const token = localStorage.getItem('monitor_github_token');
+        if (!token) {
+            alert('🔒 깃허브 토큰(GitHub PAT)이 등록되어 있지 않아 내 브라우저에만 임시 저장되었습니다.\n모든 사용자와 실시간 공유하려면 [사용자 설정] 모달 하단에서 깃허브 토큰을 등록해 주세요.');
+            renderUserChips();
+            renderUserList();
+            resetUserForm();
+            applyFilters();
+            return;
+        }
+        
+        const btnSubmit = document.getElementById('btn-user-submit');
+        const originalBtnText = btnSubmit.innerHTML;
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = `<div class="spinner" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:6px;"></div>저장 중...`;
+        
+        const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/data/users.json`;
+        
+        // Fetch current sha to prevent commit conflict
+        fetch(apiUrl, {
+            headers: { 'Authorization': `token ${token}` }
+        })
+        .then(res => {
+            if (res.status === 404) return { sha: '' };
+            if (!res.ok) throw new Error(`GitHub API error (Status: ${res.status})`);
+            return res.json();
+        })
+        .then(metadata => {
+            const sha = metadata.sha;
+            
+            // Encode Base64 UTF-8 string
+            const jsonString = JSON.stringify(userProfiles, null, 2);
+            const utf8Bytes = new TextEncoder().encode(jsonString);
+            let binary = '';
+            const len = utf8Bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(utf8Bytes[i]);
+            }
+            const base64Content = btoa(binary);
+            
+            const commitData = {
+                message: "Data: Update users list via dashboard settings panel",
+                content: base64Content,
+                sha: sha
+            };
+            
+            return fetch(apiUrl, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(commitData)
+            });
+        })
+        .then(res => {
+            if (!res.ok) throw new Error(`Commit failed (Status: ${res.status})`);
+            return res.json();
+        })
+        .then(commitResult => {
+            usersJsonSha = commitResult.content.sha;
+            
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = originalBtnText;
+            
             renderUserChips();
             renderUserList();
             resetUserForm();
             applyFilters();
             
-            alert('사용자 정보가 성공적으로 저장되었습니다.');
+            alert('💾 설정 내용이 성공적으로 깃허브(GitHub)에 저장되어 모든 사용자에게 실시간 반영되었습니다!');
+        })
+        .catch(err => {
+            console.error("Failed to sync user profiles to GitHub:", err);
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = originalBtnText;
+            
+            alert(`⚠️ 서버(GitHub) 저장 실패: ${err.message}\n\n입력한 토큰의 권한(repo 또는 write)이 올바른지 확인해 주세요. 로컬에는 임시 저장되었습니다.`);
+            
+            renderUserChips();
+            renderUserList();
+            resetUserForm();
+            applyFilters();
         });
     }
     
@@ -957,16 +1117,7 @@ function initUserFeature() {
                 const user = userProfiles.find(u => u.id === id);
                 if (user && confirm(`'${user.name}' 사용자를 삭제하시겠습니까?`)) {
                     userProfiles = userProfiles.filter(u => u.id !== id);
-                    localStorage.setItem('dashboard_user_profiles', JSON.stringify(userProfiles));
-                    
-                    if (activeUserId === id) {
-                        activeUserId = 'ALL';
-                    }
-                    
-                    renderUserChips();
-                    renderUserList();
-                    resetUserForm();
-                    applyFilters();
+                    saveUserProfiles(); // Save & Sync
                 }
             });
         });
