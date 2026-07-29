@@ -177,6 +177,13 @@ function setupEventListeners() {
 // Generate Source Filter Chips
 function generateSourceFilters() {
     const counts = {};
+    
+    // Always include all officially configured sources (even with 0 count)
+    Object.keys(sourceConfig).forEach(src => {
+        counts[src] = 0;
+    });
+    
+    // Overwrite/add counts from actual data
     projects.forEach(p => {
         counts[p.source] = (counts[p.source] || 0) + 1;
     });
@@ -957,14 +964,14 @@ function initUserFeature() {
         
         // Get all unique sources currently available in dashboard
         const uniqueSources = new Set();
+        
+        // Always include all officially configured sources first
+        Object.keys(sourceConfig).forEach(src => uniqueSources.add(src));
+        
+        // Also add any other dynamic sources from loaded projects (e.g. Google Alerts sources)
         projects.forEach(p => {
             if (p.source) uniqueSources.add(p.source);
         });
-        
-        // If empty (e.g. before data loaded), use keys from sourceConfig or preseed configs
-        if (uniqueSources.size === 0) {
-            Object.keys(sourceConfig).forEach(src => uniqueSources.add(src));
-        }
         
         userFormSources.innerHTML = '';
         Array.from(uniqueSources).sort().forEach(src => {
