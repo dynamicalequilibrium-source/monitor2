@@ -555,7 +555,9 @@ function initAddSiteFeature() {
             items.forEach((item, idx) => {
                 const name = item.querySelector('.site-name-text').firstChild.textContent.trim();
                 const url = item.querySelector('.site-url-text').getAttribute('href');
-                formatted += `${idx + 1}. **${name}**: ${url}\n`;
+                const descEl = item.querySelector('.site-desc-text');
+                const desc = descEl ? descEl.textContent.replace('추가정보:', '').trim() : '';
+                formatted += `${idx + 1}. **${name}**: ${url}${desc ? ` (추가정보: ${desc})` : ''}\n`;
             });
             
             navigator.clipboard.writeText(formatted).then(() => {
@@ -616,6 +618,7 @@ function initAddSiteFeature() {
                                 ${site.requester ? `<span style="font-size: 10px; padding: 1px 6px; border-radius: 4px; background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-secondary); margin-left: 6px; font-weight: normal; vertical-align: middle;">${escapeHtml(site.requester)}</span>` : ''}
                             </span>
                             <a href="${escapeHtml(site.url)}" target="_blank" class="site-url-text">${escapeHtml(site.url)}</a>
+                            ${site.desc && site.desc !== '없음' ? `<div class="site-desc-text" style="font-size: 11px; color: var(--text-muted); margin-top: 5px; padding: 6px 10px; background-color: var(--bg-surface); border: 1px dashed var(--border-color); border-radius: 6px; word-break: break-all; width: 100%; box-sizing: border-box;"><strong>추가정보:</strong> ${escapeHtml(site.desc)}</div>` : ''}
                         </div>
                         <button class="btn-secondary btn-sm btn-delete-site-request" data-id="${site.id}" title="요청 삭제" style="margin-left: 10px; background-color: var(--bg-main); border: 1px solid var(--border-color); color: #ef4444; width: 32px; height: 32px; border-radius: 8px; padding:0; display:inline-flex; align-items:center; justify-content:center; cursor:pointer;">
                             <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
