@@ -28,7 +28,8 @@ let usersJsonSha = '';
 const sourceConfig = {
     "행정안전부 고시공고": { shortName: "행안부 고시공고", color: "#0284c7", glow: "rgba(2, 132, 199, 0.1)" },
     "행정안전부 보도자료": { shortName: "행안부 보도자료", color: "#0d9488", glow: "rgba(13, 148, 136, 0.1)" },
-    "과학기술정보통신부 보도자료": { shortName: "과기정통부 보도자료", color: "#8b5cf6", glow: "rgba(139, 92, 246, 0.1)" }
+    "과학기술정보통신부 보도자료": { shortName: "과기정통부 보도자료", color: "#8b5cf6", glow: "rgba(139, 92, 246, 0.1)" },
+    "서울시청": { shortName: "서울시청", color: "#e11d48", glow: "rgba(225, 29, 72, 0.1)" }
 };
 
 // DOM Elements

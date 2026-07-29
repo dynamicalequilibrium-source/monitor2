@@ -54,6 +54,12 @@ TARGET_SITES = [
         "url": "https://www.msit.go.kr/bbs/list.do?sCode=user&mPid=208&mId=213",
         "type": "soup",
         "parser": "msit_press"
+    },
+    {
+        "name": "서울시청",
+        "url": "https://www.seoul.go.kr/news/news_report.do",
+        "type": "soup",
+        "parser": "seoul_press"
     }
 ]
 

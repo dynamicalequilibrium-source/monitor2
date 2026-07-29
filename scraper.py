@@ -286,6 +286,66 @@ def scrape_soup_custom(site_config: dict) -> list:
                 except Exception as page_err:
                     print(f"[Scraper Warning] Failed to fetch MSIT subpage {fetch_url}: {page_err}")
 
+        elif parser_type == "seoul_press":
+            # We want to scrape multiple pages and search results
+            urls_to_scrape = []
+            
+            # 1. Base board pages (pages 1 to 2)
+            for page in range(1, 3):
+                urls_to_scrape.append((f"{url}?bbsNo=158&curPage={page}", "general"))
+                
+            # 2. Search queries (page 1 for "ai" and "인공지능")
+            for keyword in ["ai", "인공지능"]:
+                urls_to_scrape.append((f"{url}?bbsNo=158&srchKey=sj&srchText={keyword}", "search"))
+                
+            for fetch_url, url_type in urls_to_scrape:
+                try:
+                    print(f"[Scraper] Fetching Seoul City Hall page: {fetch_url}")
+                    page_res = requests.get(fetch_url, headers=config.HEADERS, timeout=15, verify=False)
+                    page_res.encoding = page_res.apparent_encoding or 'utf-8'
+                    page_soup = BeautifulSoup(page_res.text, "html.parser")
+                        
+                    for row in page_soup.find_all('tr'):
+                        a = row.find('a', href=True)
+                        if a and "fnTbbsView" in a['href']:
+                            href = a['href']
+                            match = re.search(r"fnTbbsView\('(\d+)'\)", href)
+                            if match:
+                                nttNo = match.group(1)
+                                title = clean_text(a.get_text())
+                                
+                                # Extract date
+                                post_date = ""
+                                tds = row.find_all('td')
+                                if tds:
+                                    for td in tds:
+                                        date_text = td.get_text().strip()
+                                        date_match = re.search(r'\d{4}[.-]\d{2}[.-]\d{2}', date_text)
+                                        if date_match:
+                                            post_date = date_match.group(0).replace(".", "-")
+                                            break
+                                
+                                # Filter by date (Only keep articles within 30 days)
+                                if post_date:
+                                    try:
+                                        threshold_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+                                        if post_date < threshold_date:
+                                            continue
+                                    except Exception as date_filter_err:
+                                        print(f"[Scraper Warning] Failed to filter Seoul date: {date_filter_err}")
+                                        
+                                if title:
+                                    link = f"https://www.seoul.go.kr/news/news_report.do?bbsNo=158&nttNo={nttNo}"
+                                    items.append({
+                                        "source": name,
+                                        "title": title,
+                                        "link": link,
+                                        "post_date": post_date,
+                                        "collected_at": get_current_timestamp()
+                                    })
+                except Exception as page_err:
+                    print(f"[Scraper Warning] Failed to fetch Seoul City Hall subpage {fetch_url}: {page_err}")
+
         elif parser_type is None:
             print(f"[Scraper Warning] No parser type specified for '{name}'. Skipping.")
         else:
